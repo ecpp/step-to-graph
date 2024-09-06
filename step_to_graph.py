@@ -236,7 +236,7 @@ def save_graph(G, output_file):
     plt.savefig(f"{output_file}.pdf", format="pdf", dpi=300, bbox_inches='tight')
     plt.close()
 
-def save_liaison_graph(shape, output_file):
+def save_hierarchical_graph(shape, output_file):
     G = nx.DiGraph()
 
     shell_explorer = TopExp_Explorer(shape, TopAbs_SHELL)
@@ -304,7 +304,7 @@ def process_single_file(args):
     if skip_existing and os.path.exists(subfolder):
         expected_files = [
             f"{name_without_extension}.graphml",
-            f"{name_without_extension}_liaison.graphml"
+            f"{name_without_extension}_hierarchical.graphml"
         ]
         if all(os.path.exists(os.path.join(subfolder, file)) for file in expected_files):
             logging.info(f"Process {process_id} skipped {filename} (already processed)")
@@ -333,11 +333,11 @@ def process_single_file(args):
 
         output_file = os.path.join(subfolder, name_without_extension)
         logging.info(f"Process {process_id} saving assembly graph for {filename}")
-        nx.write_graphml(graph, f"{output_file}.graphml")
+        nx.write_graphml(graph, f"{output_file}_assembly.graphml")
 
-        # Save liaison graph
-        logging.info(f"Process {process_id} saving liaison graph for {filename}")
-        save_liaison_graph(shape, f"{output_file}_liaison.graphml")
+        # Save hierarchical graph
+        logging.info(f"Process {process_id} saving hierarchical graph for {filename}")
+        save_hierarchical_graph(shape, f"{output_file}_hierarchical.graphml")
 
         # Save metadata
         if metadata:
