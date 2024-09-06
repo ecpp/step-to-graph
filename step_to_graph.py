@@ -1,36 +1,23 @@
-import sys
 import os
 import networkx as nx
-import matplotlib.pyplot as plt
 from OCC.Core.STEPControl import STEPControl_Reader
-from OCC.Core.IFSelect import IFSelect_RetDone, IFSelect_ItemsByEntity
-from OCC.Core.TCollection import TCollection_ExtendedString
-from OCC.Core.TopAbs import TopAbs_COMPOUND, TopAbs_FACE, TopAbs_COMPSOLID, TopAbs_SOLID, TopAbs_SHELL, TopAbs_WIRE, TopAbs_EDGE, TopAbs_VERTEX
+from OCC.Core.IFSelect import IFSelect_RetDone
+from OCC.Core.TopAbs import TopAbs_COMPOUND, TopAbs_FACE, TopAbs_SOLID, TopAbs_SHELL, TopAbs_EDGE, TopAbs_VERTEX
 from OCC.Core.TopoDS import TopoDS_Iterator
 from OCC.Core.Bnd import Bnd_Box
 from OCC.Core.BRepBndLib import brepbndlib
 from OCC.Core.TopExp import TopExp_Explorer
-from OCC.Core.TopExp import topexp_MapShapes
-from OCC.Core.TopTools import TopTools_IndexedMapOfShape
-from OCC.Display.WebGl import x3dom_renderer
-from OCC.Core.TDF import TDF_LabelSequence
-from OCC.Core.TDataStd import TDataStd_Name
 from OCC.Core.BRepExtrema import BRepExtrema_DistShapeShape
 from OCC.Core.BRep import BRep_Tool
-from OCC.Core.gp import gp_Pnt
 from tqdm import tqdm
 import re
 import json
 from openai import OpenAI
 import multiprocessing
-from multiprocessing import Pool
 from colorama import init, Fore, Style
 import argparse
-import signal
 import logging
-from datetime import datetime
 
-# Initialize colorama for cross-platform color support
 init()
 
 def create_openai_client():
@@ -284,13 +271,12 @@ def setup_logging(output_folder):
     log_file = os.path.join(output_folder, 'processing_log.txt')
     logging.basicConfig(filename=log_file, level=logging.INFO,
                         format='%(asctime)s - %(levelname)s - %(message)s')
-    # Remove the console handler setup
 
 def worker_init(output_folder):
     setup_logging(output_folder)
 
 def process_single_file(args):
-    file_path, output_folder, skip_existing, generate_metadata_flag = args
+    file_path, output_folder, skip_existing, generate_metadata_flag, generate_assembly, generate_hierarchical = args
     
     filename = os.path.basename(file_path)
     process_id = multiprocessing.current_process().pid
@@ -317,12 +303,21 @@ def process_single_file(args):
         logging.info(f"Process {process_id} reading STEP file: {filename}")
         parts, shape = read_step_file(file_path)
         
-        logging.info(f"Process {process_id} creating assembly graph for {filename}")
-        # Create assembly graph with progress bar
-        total_comparisons = len(parts) * (len(parts) - 1) // 2
-        with tqdm(total=total_comparisons, desc=f"{Fore.CYAN}{filename}{Style.RESET_ALL}", 
-                  unit="comp", leave=False, position=multiprocessing.current_process()._identity[0] - 1) as pbar:
-            graph = create_assembly_graph(parts, filename, pbar)
+        if generate_assembly:
+            logging.info(f"Process {process_id} creating assembly graph for {filename}")
+            # Create assembly graph with progress bar
+            total_comparisons = len(parts) * (len(parts) - 1) // 2
+            with tqdm(total=total_comparisons, desc=f"{Fore.CYAN}{filename}{Style.RESET_ALL}", 
+                    unit="comp", leave=False, position=multiprocessing.current_process()._identity[0] - 1) as pbar:
+                graph = create_assembly_graph(parts, filename, pbar)
+
+            logging.info(f"Process {process_id} saving assembly graph for {filename}")
+            nx.write_graphml(graph, f"{subfolder}/{name_without_extension}_assembly.graphml")
+
+        if generate_hierarchical:
+            # Save hierarchical graph
+            logging.info(f"Process {process_id} saving hierarchical graph for {filename}")
+            save_hierarchical_graph(shape, f"{subfolder}/{name_without_extension}_hierarchical.graphml")
 
         # Generate metadata if the flag is set
         metadata = None
@@ -331,18 +326,10 @@ def process_single_file(args):
             product_names = [part[0] for part in parts]
             metadata = generate_metadata(product_names, filename)
 
-        output_file = os.path.join(subfolder, name_without_extension)
-        logging.info(f"Process {process_id} saving assembly graph for {filename}")
-        nx.write_graphml(graph, f"{output_file}_assembly.graphml")
-
-        # Save hierarchical graph
-        logging.info(f"Process {process_id} saving hierarchical graph for {filename}")
-        save_hierarchical_graph(shape, f"{output_file}_hierarchical.graphml")
-
         # Save metadata
         if metadata:
             logging.info(f"Process {process_id} saving metadata for {filename}")
-            with open(f"{output_file}_metadata.json", 'w') as f:
+            with open(f"{subfolder}/{name_without_extension}_metadata.json", 'w') as f:
                 json.dump(metadata, f, indent=2)
 
         logging.info(f"Process {process_id} finished processing {filename}")
@@ -352,7 +339,7 @@ def process_single_file(args):
         logging.error(f"Process {process_id} encountered an error processing {filename}: {str(e)}")
         return f"{Fore.RED}✘ Error processing {filename}: {str(e)}{Style.RESET_ALL}"
 
-def process_step_files(folder_path, output_folder, skip_existing, num_processes, generate_metadata_flag):
+def process_step_files(folder_path, output_folder, skip_existing, num_processes, generate_metadata_flag, generate_assembly, generate_hierarchical):
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
@@ -364,7 +351,7 @@ def process_step_files(folder_path, output_folder, skip_existing, num_processes,
 
     print(f"{Fore.YELLOW}Processing {Fore.RED}{len(step_files)}{Style.RESET_ALL} files using {Fore.RED}{num_processes}{Style.RESET_ALL} processes{Style.RESET_ALL}")
 
-    args_list = [(file_path, output_folder, skip_existing, generate_metadata_flag) for file_path in step_files]
+    args_list = [(file_path, output_folder, skip_existing, generate_metadata_flag, generate_assembly, generate_hierarchical) for file_path in step_files]
 
     with multiprocessing.Pool(processes=num_processes, initializer=worker_init, initargs=(output_folder,)) as pool:
         results = list(tqdm(pool.imap(process_single_file, args_list), total=len(step_files), desc="Overall Progress"))
@@ -387,6 +374,8 @@ if __name__ == "__main__":
     parser.add_argument("--generate-metadata", action="store_true", 
                         help="Generate metadata using OpenAI GPT")
     parser.add_argument("--log", action="store_true", help="Enable logging")
+    parser.add_argument("--assembly", action="store_true", help="Generate assembly graph")
+    parser.add_argument("--hierarchical", action="store_true", help="Generate hierarchical graph")
     args = parser.parse_args()
 
     step_files_folder = args.step_files_folder
@@ -409,8 +398,11 @@ if __name__ == "__main__":
     else:
         logging.disable(logging.CRITICAL)  # Disable logging if not requested
     
+    if not (args.assembly or args.hierarchical):
+        parser.error("At least one of --assembly or --hierarchical must be specified")
+
     try:
-        process_step_files(step_files_folder, output_folder, skip_existing, num_processes, args.generate_metadata)
+        process_step_files(step_files_folder, output_folder, skip_existing, num_processes, args.generate_metadata, args.assembly, args.hierarchical)
     except KeyboardInterrupt:
         logging.info("Process interrupted by user. Exiting gracefully...")
         print(f"\n{Fore.YELLOW}Process interrupted by user. Exiting gracefully...{Style.RESET_ALL}")
