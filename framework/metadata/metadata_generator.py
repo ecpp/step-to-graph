@@ -9,7 +9,7 @@ class MetadataGenerator:
             api_key = os.getenv('OPENAI_API_KEY')
         if not api_key:
             raise ValueError("OpenAI API key not found in environment variables")
-        openai.api_key = api_key
+        self.client = openai.OpenAI(api_key=api_key)
 
     def generate(self, product_names, filename):
         prompt = f"Based on the following list of product names from a STEP file named '{filename}', generate a JSON metadata that includes:\n"
@@ -23,7 +23,7 @@ class MetadataGenerator:
         prompt += "\nProvide the response as a JSON object."
 
         try:
-            response = openai.ChatCompletion.create(
+            response = self.client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
                     {"role": "system",
