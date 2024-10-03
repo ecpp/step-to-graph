@@ -4,4 +4,4 @@
 source activate myenv
 
 # Run the Python script with the provided arguments
-python test.py "$@"
+python framework/main.py "$@"

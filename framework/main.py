@@ -10,9 +10,10 @@ from utils.logging_utils import setup_logging
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Process STEP files and create assembly graphs.")
-    parser.add_argument("step_files_folder",
+    parser.add_argument("--input", required=True,
                         help="Folder containing STEP files")
-    parser.add_argument("output_folder", help="Folder to save output files")
+    parser.add_argument("--output", required=True,
+                        help="Folder to save output files")
     parser.add_argument("--process-all", action="store_true",
                         help="Process all files, including those already processed")
     parser.add_argument("--processes", type=int, default=max(1, multiprocessing.cpu_count() // 2),
@@ -30,8 +31,8 @@ if __name__ == "__main__":
                         help="Generate hierarchical graph")
     args = parser.parse_args()
 
-    step_files_folder = args.step_files_folder
-    output_folder = args.output_folder
+    step_files_folder = args.input
+    output_folder = args.output
     skip_existing = not args.process_all
     if args.max_performance:
         num_processes = multiprocessing.cpu_count()
