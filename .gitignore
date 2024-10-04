@@ -5,3 +5,4 @@ stepfiles/
 *zip
 test.py
 *.step
+framework/utils/__pycache__/
