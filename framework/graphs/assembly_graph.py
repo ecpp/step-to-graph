@@ -67,7 +67,7 @@ class AssemblyGraph:
 
     def save_pdf(self, output_file):
         plt.figure(figsize=(20, 20))
-        pos = nx.spring_layout(self.graph, k=0.5, iterations=50)
+        pos = nx.kamada_kawai_layout(self.graph)
         nx.draw(self.graph, pos, with_labels=False, node_color='lightblue',
                 node_size=3000, font_size=8, font_weight='bold')
 
