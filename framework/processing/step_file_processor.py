@@ -12,7 +12,7 @@ from graphs.hierarchical_graph import HierarchicalGraph
 from metadata.metadata_generator import MetadataGenerator
 
 class StepFileProcessor:
-    def __init__(self, file_path, output_folder, skip_existing, generate_metadata_flag, generate_assembly, generate_hierarchical, save_pdf):
+    def __init__(self, file_path, output_folder, skip_existing, generate_metadata_flag, generate_assembly, generate_hierarchical, save_pdf, no_self_connections):
         self.file_path = file_path
         self.output_folder = output_folder
         self.skip_existing = skip_existing
@@ -20,6 +20,7 @@ class StepFileProcessor:
         self.generate_assembly = generate_assembly
         self.generate_hierarchical = generate_hierarchical
         self.save_pdf = save_pdf
+        self.no_self_connections = no_self_connections
         self.filename = os.path.basename(file_path)
         self.name_without_extension = os.path.splitext(self.filename)[0]
         self.subfolder = os.path.join(self.output_folder, self.name_without_extension)
@@ -43,7 +44,7 @@ class StepFileProcessor:
                 total_comparisons = len(self.parts) * (len(self.parts) - 1) // 2
                 with tqdm(total=total_comparisons, desc=f"{Fore.CYAN}{self.filename}{Style.RESET_ALL}",
                           unit="comp", leave=False, position=multiprocessing.current_process()._identity[0] - 1) as pbar:
-                    assembly_graph = AssemblyGraph(self.parts, self.filename)
+                    assembly_graph = AssemblyGraph(self.parts, self.filename, no_self_connections=self.no_self_connections)
                     assembly_graph.create(pbar)
                     logging.info(f"Saving assembly graph for {self.filename}")
                     assembly_graph.save_graphml(f"{self.subfolder}/{self.name_without_extension}_assembly.graphml")

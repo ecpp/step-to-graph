@@ -29,6 +29,8 @@ if __name__ == "__main__":
                         help="Save assembly graph as PDF (only works with --assembly)")
     parser.add_argument("--hierarchical", action="store_true",
                         help="Generate hierarchical graph")
+    parser.add_argument("--no-self-connections", action="store_true",
+                        help="Disable self-connections in the assembly graph")
     args = parser.parse_args()
 
     step_files_folder = args.input
@@ -61,8 +63,17 @@ if __name__ == "__main__":
         parser.error("Save PDF option requires assembly graph generation")
 
     try:
-        process_step_files(step_files_folder, output_folder, skip_existing, num_processes,
-                           args.generate_metadata, args.assembly, args.hierarchical, args.save_pdf)
+        process_step_files(
+            step_files_folder,
+            output_folder,
+            skip_existing,
+            num_processes,
+            args.generate_metadata,
+            args.assembly,
+            args.hierarchical,
+            args.save_pdf,
+            no_self_connections=args.no_self_connections
+        )
     except KeyboardInterrupt:
         logging.info("Process interrupted by user. Exiting gracefully...")
         print(

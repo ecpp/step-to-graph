@@ -6,3 +6,4 @@ stepfiles/
 test.py
 *.step
 framework/utils/__pycache__/
+*.pyc

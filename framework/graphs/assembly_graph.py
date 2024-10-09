@@ -6,10 +6,11 @@ from tqdm import tqdm
 from utils.shape_utils import ShapeUtils
 
 class AssemblyGraph:
-    def __init__(self, parts, filename):
+    def __init__(self, parts, filename, no_self_connections=False):
         self.parts = parts
         self.filename = filename
         self.graph = nx.Graph()
+        self.no_self_connections = no_self_connections
         
         p = index.Property()
         p.dimension = 3
@@ -58,6 +59,10 @@ class AssemblyGraph:
                     continue  # Avoid duplicate checks and self-comparison
 
                 name2, shape2 = self.parts[j]
+                
+                if self.no_self_connections and name1 == name2:
+                    continue
+                
                 if ShapeUtils.are_connected(shape1, shape2):
                     self.graph.add_edge(name1, name2)
                 pbar.update(1)
