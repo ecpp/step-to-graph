@@ -2,6 +2,7 @@ import networkx as nx
 from rtree import index
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+from pyvis.network import Network  # Added import for HTML visualization
 
 from utils.shape_utils import ShapeUtils
 
@@ -85,3 +86,12 @@ class AssemblyGraph:
         plt.savefig(f"{output_file}.pdf", format="pdf",
                     dpi=300, bbox_inches='tight')
         plt.close()
+    
+    def save_html(self, output_file):
+        """
+        Saves the assembly graph as an interactive HTML file with movable nodes.
+        """
+        net = Network(height='750px', width='100%', notebook=False)
+        net.from_nx(self.graph)
+        net.show_buttons(filter_=['physics'])  # Optional: Adds physics controls
+        net.save_graph(output_file)

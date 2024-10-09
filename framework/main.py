@@ -27,6 +27,8 @@ if __name__ == "__main__":
                         help="Generate assembly graph")
     parser.add_argument("--save-pdf", action="store_true",
                         help="Save assembly graph as PDF (only works with --assembly)")
+    parser.add_argument("--save-html", action="store_true",
+                        help="Save assembly graph as interactive HTML (only works with --assembly)")
     parser.add_argument("--hierarchical", action="store_true",
                         help="Generate hierarchical graph")
     parser.add_argument("--no-self-connections", action="store_true",
@@ -62,6 +64,9 @@ if __name__ == "__main__":
     if args.save_pdf and not args.assembly:
         parser.error("Save PDF option requires assembly graph generation")
 
+    if args.save_html and not args.assembly:
+        parser.error("Save HTML option requires assembly graph generation")
+
     try:
         process_step_files(
             step_files_folder,
@@ -72,6 +77,7 @@ if __name__ == "__main__":
             args.assembly,
             args.hierarchical,
             args.save_pdf,
+            args.save_html,  # Pass the new argument
             no_self_connections=args.no_self_connections
         )
     except KeyboardInterrupt:

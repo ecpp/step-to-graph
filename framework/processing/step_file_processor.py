@@ -12,7 +12,7 @@ from graphs.hierarchical_graph import HierarchicalGraph
 from metadata.metadata_generator import MetadataGenerator
 
 class StepFileProcessor:
-    def __init__(self, file_path, output_folder, skip_existing, generate_metadata_flag, generate_assembly, generate_hierarchical, save_pdf, no_self_connections):
+    def __init__(self, file_path, output_folder, skip_existing, generate_metadata_flag, generate_assembly, generate_hierarchical, save_pdf, save_html, no_self_connections):
         self.file_path = file_path
         self.output_folder = output_folder
         self.skip_existing = skip_existing
@@ -20,6 +20,7 @@ class StepFileProcessor:
         self.generate_assembly = generate_assembly
         self.generate_hierarchical = generate_hierarchical
         self.save_pdf = save_pdf
+        self.save_html = save_html  # New attribute
         self.no_self_connections = no_self_connections
         self.filename = os.path.basename(file_path)
         self.name_without_extension = os.path.splitext(self.filename)[0]
@@ -36,9 +37,11 @@ class StepFileProcessor:
             self.parts, self.shape = step_file.read()
 
             if self.generate_assembly:
-                if self.skip_existing and os.path.exists(f"{self.subfolder}/{self.name_without_extension}_assembly.graphml"):
+                assembly_graph_path = f"{self.subfolder}/{self.name_without_extension}_assembly.graphml"
+                if self.skip_existing and os.path.exists(assembly_graph_path):
                     logging.info(f"Skipped assembly graph for {self.filename} (already exists)")
-                    return f"{Fore.YELLOW} {self.filename} assembly graph already exists, skipping{Style.RESET_ALL}"
+                    skip_msg = f"{Fore.YELLOW} {self.filename} assembly graph already exists, skipping{Style.RESET_ALL}"
+                    return skip_msg
 
                 logging.info(f"Creating assembly graph for {self.filename}")
                 total_comparisons = len(self.parts) * (len(self.parts) - 1) // 2
@@ -47,22 +50,28 @@ class StepFileProcessor:
                     assembly_graph = AssemblyGraph(self.parts, self.filename, no_self_connections=self.no_self_connections)
                     assembly_graph.create(pbar)
                     logging.info(f"Saving assembly graph for {self.filename}")
-                    assembly_graph.save_graphml(f"{self.subfolder}/{self.name_without_extension}_assembly.graphml")
+                    assembly_graph.save_graphml(assembly_graph_path)
 
                     if self.save_pdf:
                         logging.info(f"Saving assembly graph as PDF for {self.filename}")
                         assembly_graph.save_pdf(f"{self.subfolder}/{self.name_without_extension}_assembly")
 
+                    if self.save_html:
+                        logging.info(f"Saving assembly graph as HTML for {self.filename}")
+                        assembly_graph.save_html(f"{self.subfolder}/{self.name_without_extension}_assembly.html")  # Save HTML
+
             if self.generate_hierarchical:
-                if self.skip_existing and os.path.exists(f"{self.subfolder}/{self.name_without_extension}_hierarchical.graphml"):
+                hierarchical_graph_path = f"{self.subfolder}/{self.name_without_extension}_hierarchical.graphml"
+                if self.skip_existing and os.path.exists(hierarchical_graph_path):
                     logging.info(f"Skipped hierarchical graph for {self.filename} (already exists)")
-                    return f"{Fore.YELLOW} {self.filename} hierarchical graph already exists, skipping{Style.RESET_ALL}"
+                    skip_msg = f"{Fore.YELLOW} {self.filename} hierarchical graph already exists, skipping{Style.RESET_ALL}"
+                    return skip_msg
 
                 logging.info(f"Creating hierarchical graph for {self.filename}")
                 hierarchical_graph = HierarchicalGraph(self.shape)
                 hierarchical_graph.create()
                 logging.info(f"Saving hierarchical graph for {self.filename}")
-                hierarchical_graph.save_graphml(f"{self.subfolder}/{self.name_without_extension}_hierarchical.graphml")
+                hierarchical_graph.save_graphml(hierarchical_graph_path)
 
             if self.generate_metadata_flag and len(self.parts) > 3:
                 logging.info(f"Generating metadata for {self.filename}")
@@ -70,12 +79,15 @@ class StepFileProcessor:
                 metadata_generator = MetadataGenerator()
                 metadata = metadata_generator.generate(product_names, self.filename)
                 if metadata:
-                    with open(f"{self.subfolder}/{self.name_without_extension}_metadata.json", 'w') as f:
+                    metadata_path = f"{self.subfolder}/{self.name_without_extension}_metadata.json"
+                    with open(metadata_path, 'w') as f:
                         json.dump(metadata, f, indent=2)
 
             logging.info(f"Finished processing {self.filename}")
-            return f"{Fore.GREEN} {self.filename} processed successfully{Style.RESET_ALL}"
+            success_msg = f"{Fore.GREEN} {self.filename} processed successfully{Style.RESET_ALL}"
+            return success_msg
 
         except Exception as e:
             logging.error(f"Error processing {self.filename}: {str(e)}")
-            return f"{Fore.RED} Error processing {self.filename}: {str(e)}{Style.RESET_ALL}"
+            error_msg = f"{Fore.RED} Error processing {self.filename}: {str(e)}{Style.RESET_ALL}"
+            return error_msg
