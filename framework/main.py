@@ -33,6 +33,8 @@ if __name__ == "__main__":
                         help="Generate hierarchical graph")
     parser.add_argument("--no-self-connections", action="store_true",
                         help="Disable self-connections in the assembly graph")
+    parser.add_argument("--stats", action="store_true",
+                        help="Generate statistics for STEP files")
     args = parser.parse_args()
 
     step_files_folder = args.input
@@ -78,7 +80,8 @@ if __name__ == "__main__":
             args.hierarchical,
             args.save_pdf,
             args.save_html,  # Pass the new argument
-            no_self_connections=args.no_self_connections
+            no_self_connections=args.no_self_connections,
+            generate_stats=args.stats  # Pass stats argument
         )
     except KeyboardInterrupt:
         logging.info("Process interrupted by user. Exiting gracefully...")

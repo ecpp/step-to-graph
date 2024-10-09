@@ -2,7 +2,7 @@ import networkx as nx
 from rtree import index
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-from pyvis.network import Network  # Added import for HTML visualization
+from pyvis.network import Network
 
 from utils.shape_utils import ShapeUtils
 
