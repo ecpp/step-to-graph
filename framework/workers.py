@@ -25,9 +25,9 @@ def process_single_file(args):
         generate_assembly=generate_assembly,
         generate_hierarchical=generate_hierarchical,
         save_pdf=save_pdf,
-        save_html=save_html,  # Pass the new argument
+        save_html=save_html,
         no_self_connections=no_self_connections,
-        generate_stats=generate_stats  # Pass the new argument
+        generate_stats=generate_stats
     )
 
     result = processor.process()
@@ -47,7 +47,7 @@ def process_step_files(folder_path, output_folder, skip_existing, num_processes,
     print(f"{Fore.YELLOW}Processing {Fore.RED}{len(step_files)}{Style.RESET_ALL} files using {Fore.RED}{num_processes}{Style.RESET_ALL} processes{Style.RESET_ALL}")
 
     args_list = [(file_path, output_folder, skip_existing, generate_metadata_flag,
-                  generate_assembly, generate_hierarchical, save_pdf, save_html, no_self_connections, generate_stats) for file_path in step_files]  # Include generate_stats
+                  generate_assembly, generate_hierarchical, save_pdf, save_html, no_self_connections, generate_stats) for file_path in step_files]
     with multiprocessing.Pool(processes=num_processes, initializer=worker_init, initargs=(output_folder,)) as pool:
         results = list(tqdm(pool.imap(process_single_file, args_list),
                             total=len(step_files), desc="Overall Progress"))

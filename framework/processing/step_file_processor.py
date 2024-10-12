@@ -10,6 +10,12 @@ from processing.step_file import StepFile
 from graphs.assembly_graph import AssemblyGraph
 from graphs.hierarchical_graph import HierarchicalGraph
 from metadata.metadata_generator import MetadataGenerator
+from OCC.Core.AIS import AIS_Shape
+from OCC.Display.SimpleGui import init_display
+from OCC.Extend.DataExchange import read_step_file
+from OCC.Core.TopExp import TopExp_Explorer
+from OCC.Core.TopAbs import TopAbs_SOLID
+import time
 
 class StepFileProcessor:
     def __init__(self, file_path, output_folder, skip_existing, generate_metadata_flag, generate_assembly, generate_hierarchical, save_pdf, save_html, no_self_connections, generate_stats):
@@ -38,6 +44,11 @@ class StepFileProcessor:
             self.parts, self.shape = step_file.read()
 
             statistics = {}
+
+            # Extract images
+            images_folder = os.path.join(self.subfolder, 'images')
+            os.makedirs(images_folder, exist_ok=True)
+            self.extract_images(images_folder)
 
             if self.generate_assembly:
                 assembly_graph_path = f"{self.subfolder}/{self.name_without_extension}_assembly.graphml"
@@ -99,7 +110,7 @@ class StepFileProcessor:
 
             if self.generate_metadata_flag and len(self.parts) > 3:
                 logging.info(f"Generating metadata for {self.filename}")
-                product_names = [part[0] for part in self.parts]
+                product_names = [part[0] for part in self.parts if part[0]]
                 metadata_generator = MetadataGenerator()
                 metadata = metadata_generator.generate(product_names, self.filename)
                 if metadata:
@@ -129,3 +140,44 @@ class StepFileProcessor:
 
     def _count_graph_nodes_by_type(self, graph, node_type):
         return len([n for n, attr in graph.nodes(data=True) if attr.get('shape_type') == node_type])
+
+    def extract_images(self, output_folder):
+        """
+        Extracts images for each part and saves them with corresponding part names.
+        """
+        display, start_display, add_menu, add_function_to_menu = init_display()
+        display.EraseAll()
+        display.Context.Display(AIS_Shape(self.shape), True)
+        display.FitAll()
+
+        for part_name, part_shape in self.parts:
+            sanitized_name = self._sanitize_filename(part_name)
+            if not sanitized_name:
+                sanitized_name = f"unnamed_part_{self.parts.index((part_name, part_shape)) + 1}"
+
+            ais_shape = AIS_Shape(part_shape)
+            display.Context.EraseAll(True)
+            display.Context.Display(ais_shape, True)
+            display.FitAll()
+
+            # Allow the display to update
+            display.View.Redraw()
+
+            image_path = os.path.join(output_folder, f"{sanitized_name}.png")
+            try:
+                display.View.Dump(image_path)
+                logging.info(f"Saved image for part '{part_name}' at {image_path}")
+            except Exception as img_e:
+                logging.error(f"Failed to save image for part '{part_name}': {str(img_e)}")
+        display.FitAll()
+        display.View.Redraw()
+        display.Repaint()
+
+    def _sanitize_filename(self, name):
+        """
+        Sanitizes the part name to create a valid filename.
+        """
+        if not name:
+            return None
+        # Remove or replace characters that are invalid in filenames
+        return re.sub(r'[\\/*?:"<>|]', "_", name)
