@@ -10,6 +10,12 @@ from processing.step_file import StepFile
 from graphs.assembly_graph import AssemblyGraph
 from graphs.hierarchical_graph import HierarchicalGraph
 from metadata.metadata_generator import MetadataGenerator
+from OCC.Core.AIS import AIS_Shape
+from OCC.Display.SimpleGui import init_display
+from OCC.Extend.DataExchange import read_step_file
+from OCC.Core.TopExp import TopExp_Explorer
+from OCC.Core.TopAbs import TopAbs_SOLID
+import time
 
 from OCC.Core.AIS import AIS_Shape 
 from OCC.Display.SimpleGui import init_display 
@@ -51,6 +57,11 @@ class StepFileProcessor:
                 if not os.path.exists(images_folder):
                     os.makedirs(images_folder)
                 self.extract_images(self.shape, images_folder)
+
+            # Extract images
+            images_folder = os.path.join(self.subfolder, 'images')
+            os.makedirs(images_folder, exist_ok=True)
+            self.extract_images(images_folder)
 
             if self.generate_assembly:
                 assembly_graph_path = f"{self.subfolder}/{self.name_without_extension}_assembly.graphml"
@@ -112,7 +123,7 @@ class StepFileProcessor:
 
             if self.generate_metadata_flag and len(self.parts) > 3:
                 logging.info(f"Generating metadata for {self.filename}")
-                product_names = [part[0] for part in self.parts]
+                product_names = [part[0] for part in self.parts if part[0]]
                 metadata_generator = MetadataGenerator()
                 metadata = metadata_generator.generate(product_names, self.filename)
                 if metadata:

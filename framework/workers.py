@@ -25,7 +25,7 @@ def process_single_file(args):
         generate_assembly=generate_assembly,
         generate_hierarchical=generate_hierarchical,
         save_pdf=save_pdf,
-        save_html=save_html,  # Pass the new argument
+        save_html=save_html,
         no_self_connections=no_self_connections,
         generate_stats=generate_stats,
         images=images
