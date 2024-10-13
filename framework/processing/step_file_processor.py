@@ -58,11 +58,6 @@ class StepFileProcessor:
                     os.makedirs(images_folder)
                 self.extract_images(self.shape, images_folder)
 
-            # Extract images
-            images_folder = os.path.join(self.subfolder, 'images')
-            os.makedirs(images_folder, exist_ok=True)
-            self.extract_images(images_folder)
-
             if self.generate_assembly:
                 assembly_graph_path = f"{self.subfolder}/{self.name_without_extension}_assembly.graphml"
                 if self.skip_existing and os.path.exists(assembly_graph_path):
