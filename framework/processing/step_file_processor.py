@@ -120,7 +120,7 @@ class StepFileProcessor:
                 logging.info(f"Generating metadata for {self.filename}")
                 product_names = [part[0] for part in self.parts if part[0]]
                 metadata_generator = MetadataGenerator()
-                metadata = metadata_generator.generate(product_names, self.filename)
+                metadata = metadata_generator.generate(product_names, self.filename, images_folder)
                 if metadata:
                     metadata_path = f"{self.subfolder}/{self.name_without_extension}_metadata.json"
                     with open(metadata_path, 'w') as f:
