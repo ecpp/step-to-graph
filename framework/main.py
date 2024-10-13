@@ -35,6 +35,8 @@ if __name__ == "__main__":
                         help="Disable self-connections in the assembly graph")
     parser.add_argument("--stats", action="store_true",
                         help="Generate statistics for STEP files")
+    parser.add_argument("--images", action="store_true",
+                        help="Save images of parts in the assembly graph")
     args = parser.parse_args()
 
     step_files_folder = args.input
@@ -69,6 +71,9 @@ if __name__ == "__main__":
     if args.save_html and not args.assembly:
         parser.error("Save HTML option requires assembly graph generation")
 
+    if args.images and not args.assembly:
+        parser.error("Images option requires assembly graph generation")
+
     try:
         process_step_files(
             step_files_folder,
@@ -81,7 +86,8 @@ if __name__ == "__main__":
             args.save_pdf,
             args.save_html,  # Pass the new argument
             no_self_connections=args.no_self_connections,
-            generate_stats=args.stats  # Pass stats argument
+            generate_stats=args.stats,
+            images=args.images
         )
     except KeyboardInterrupt:
         logging.info("Process interrupted by user. Exiting gracefully...")

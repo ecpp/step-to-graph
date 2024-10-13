@@ -3,15 +3,17 @@ from rtree import index
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from pyvis.network import Network
+import os
 
 from utils.shape_utils import ShapeUtils
 
 class AssemblyGraph:
-    def __init__(self, parts, filename, no_self_connections=False):
+    def __init__(self, parts, filename, no_self_connections=False, images_folder=None):
         self.parts = parts
         self.filename = filename
         self.graph = nx.Graph()
         self.no_self_connections = no_self_connections
+        self.images_folder = images_folder
         
         p = index.Property()
         p.dimension = 3
@@ -89,9 +91,40 @@ class AssemblyGraph:
     
     def save_html(self, output_file):
         """
-        Saves the assembly graph as an interactive HTML file with movable nodes.
+        Saves the assembly graph as an interactive HTML file with movable nodes and images.
         """
         net = Network(height='750px', width='100%', notebook=False)
-        net.from_nx(self.graph)
-        net.show_buttons(filter_=['physics'])  # Optional: Adds physics controls
+        net.show_buttons(filter_=['physics'])
+
+        if self.images_folder:
+            for node_name in self.graph.nodes:
+                image_filename = f"{node_name}.png"
+                image_path = os.path.join(self.images_folder, image_filename)
+                if os.path.exists(image_path):
+                    net.add_node(
+                        node_name,
+                        label=node_name,
+                        shape='image',
+                        image=f"file://{os.path.abspath(image_path)}",
+                        size=30
+                    )
+                else:
+                    net.add_node(
+                        node_name,
+                        label=node_name,
+                        shape='dot',
+                        size=30
+                    )
+        else:
+            for node_name in self.graph.nodes:
+                net.add_node(
+                    node_name,
+                    label=node_name,
+                    shape='dot',
+                    size=30
+                )
+
+        for source, target in self.graph.edges:
+            net.add_edge(source, target)
+
         net.save_graph(output_file)

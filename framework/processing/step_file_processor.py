@@ -11,8 +11,15 @@ from graphs.assembly_graph import AssemblyGraph
 from graphs.hierarchical_graph import HierarchicalGraph
 from metadata.metadata_generator import MetadataGenerator
 
+from OCC.Core.AIS import AIS_Shape 
+from OCC.Display.SimpleGui import init_display 
+from OCC.Extend.DataExchange import read_step_file 
+from OCC.Core.TopExp import TopExp_Explorer 
+from OCC.Core.TopAbs import TopAbs_SOLID, TopAbs_COMPOUND 
+import time 
+
 class StepFileProcessor:
-    def __init__(self, file_path, output_folder, skip_existing, generate_metadata_flag, generate_assembly, generate_hierarchical, save_pdf, save_html, no_self_connections, generate_stats):
+    def __init__(self, file_path, output_folder, skip_existing, generate_metadata_flag, generate_assembly, generate_hierarchical, save_pdf, save_html, no_self_connections, generate_stats, images):
         self.file_path = file_path
         self.output_folder = output_folder
         self.skip_existing = skip_existing
@@ -23,6 +30,7 @@ class StepFileProcessor:
         self.save_html = save_html
         self.no_self_connections = no_self_connections
         self.generate_stats = generate_stats
+        self.images = images
         self.filename = os.path.basename(file_path)
         self.name_without_extension = os.path.splitext(self.filename)[0]
         self.subfolder = os.path.join(self.output_folder, self.name_without_extension)
@@ -38,6 +46,11 @@ class StepFileProcessor:
             self.parts, self.shape = step_file.read()
 
             statistics = {}
+            images_folder = f"{self.subfolder}/images"
+            if self.images:
+                if not os.path.exists(images_folder):
+                    os.makedirs(images_folder)
+                self.extract_images(self.shape, images_folder)
 
             if self.generate_assembly:
                 assembly_graph_path = f"{self.subfolder}/{self.name_without_extension}_assembly.graphml"
@@ -52,7 +65,7 @@ class StepFileProcessor:
                 total_comparisons = len(self.parts) * (len(self.parts) - 1) // 2
                 with tqdm(total=total_comparisons, desc=f"{Fore.CYAN}{self.filename}{Style.RESET_ALL}",
                           unit="comp", leave=False, position=multiprocessing.current_process()._identity[0] - 1) as pbar:
-                    assembly_graph = AssemblyGraph(self.parts, self.filename, no_self_connections=self.no_self_connections)
+                    assembly_graph = AssemblyGraph(self.parts, self.filename, no_self_connections=self.no_self_connections, images_folder=images_folder)
                     assembly_graph.create(pbar)
                     logging.info(f"Saving assembly graph for {self.filename}")
                     assembly_graph.save_graphml(assembly_graph_path)
@@ -129,3 +142,43 @@ class StepFileProcessor:
 
     def _count_graph_nodes_by_type(self, graph, node_type):
         return len([n for n, attr in graph.nodes(data=True) if attr.get('shape_type') == node_type])
+    
+    def extract_images(self, shape, output_folder): 
+        display, start_display, add_menu, add_function_to_menu = init_display() 
+        display.Context.RemoveAll(True) 
+        display.Context.Display(AIS_Shape(shape), True) 
+        display.FitAll() 
+ 
+        # Save an image of the full assembly 
+        full_assembly_path = os.path.join(output_folder, f"{self.name_without_extension}_full_assembly.png") 
+        display.View.Dump(full_assembly_path) 
+        logging.info(f"Saved full assembly image: {full_assembly_path}") 
+ 
+        # Extract individual part images 
+        for i, (part_name, part_shape) in enumerate(self.parts): 
+            if part_shape.ShapeType() in [TopAbs_SOLID, TopAbs_COMPOUND]: 
+                ais_shape = AIS_Shape(part_shape) 
+ 
+                display.Context.RemoveAll(True) 
+                display.Context.Display(ais_shape, True) 
+                display.FitAll() 
+ 
+                display.View.Redraw() 
+                time.sleep(0.1) 
+ 
+                # Generate a valid filename from the part name 
+                safe_part_name = re.sub(r'[^\w\-_\. ]', '_', part_name) if part_name else f"unnamed_part_{i+1}" 
+                image_path = os.path.join(output_folder, f"{safe_part_name}.png") 
+                 
+                # Ensure unique filenames 
+                counter = 1 
+                while os.path.exists(image_path): 
+                    image_path = os.path.join(output_folder, f"{safe_part_name}_{counter}.png") 
+                    counter += 1 
+ 
+                display.View.Dump(image_path) 
+                logging.info(f"Saved part image: {image_path}") 
+ 
+        display.Context.RemoveAll(True) 
+        display.View.Redraw() 
+        display.Repaint() 
