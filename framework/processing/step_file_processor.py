@@ -3,29 +3,31 @@ import logging
 import multiprocessing
 import json
 import re
+import platform
 from colorama import Fore, Style
 from tqdm import tqdm
+from OCC.Core.AIS import AIS_Shape
+from OCC.Display.SimpleGui import init_display
+from OCC.Extend.DataExchange import read_step_file
+from OCC.Core.TopExp import TopExp_Explorer
+from OCC.Core.TopAbs import TopAbs_SOLID, TopAbs_COMPOUND
+import time
 
 from processing.step_file import StepFile
 from graphs.assembly_graph import AssemblyGraph
 from graphs.hierarchical_graph import HierarchicalGraph
 from metadata.metadata_generator import MetadataGenerator
-from OCC.Core.AIS import AIS_Shape
-from OCC.Display.SimpleGui import init_display
-from OCC.Extend.DataExchange import read_step_file
-from OCC.Core.TopExp import TopExp_Explorer
-from OCC.Core.TopAbs import TopAbs_SOLID
-import time
 
-from OCC.Core.AIS import AIS_Shape 
-from OCC.Display.SimpleGui import init_display 
-from OCC.Extend.DataExchange import read_step_file 
-from OCC.Core.TopExp import TopExp_Explorer 
-from OCC.Core.TopAbs import TopAbs_SOLID, TopAbs_COMPOUND 
-import time 
+try:
+    from pyvirtualdisplay import Display
+except ImportError:
+    Display = None
+
 
 class StepFileProcessor:
-    def __init__(self, file_path, output_folder, skip_existing, generate_metadata_flag, generate_assembly, generate_hierarchical, save_pdf, save_html, no_self_connections, generate_stats, images):
+    def __init__(self, file_path, output_folder, skip_existing, generate_metadata_flag,
+                 generate_assembly, generate_hierarchical, save_pdf, save_html,
+                 no_self_connections, generate_stats, images, headless=None):
         self.file_path = file_path
         self.output_folder = output_folder
         self.skip_existing = skip_existing
@@ -44,6 +46,26 @@ class StepFileProcessor:
             os.makedirs(self.subfolder)
         self.parts = []
         self.shape = None
+        self.headless = self.determine_headless_mode(headless)
+
+    def determine_headless_mode(self, headless_arg):
+        """
+        Determines whether to run in headless mode based on user input and environment.
+        """
+        # If headless is explicitly set, use it
+        if headless_arg is not None:
+            return headless_arg
+
+        # Automatic detection
+        system = platform.system()
+        if system == 'Linux':
+            # Check if DISPLAY environment variable is set
+            if not os.getenv('DISPLAY'):
+                logging.info("Running in headless mode")
+                return True
+        # For other systems (e.g., Windows), assume display is available
+        logging.info("Running with display")
+        return False
 
     def process(self):
         try:
@@ -52,14 +74,14 @@ class StepFileProcessor:
             self.parts, self.shape = step_file.read()
 
             statistics = {}
-            images_folder = f"{self.subfolder}/images"
+            images_folder = os.path.join(self.subfolder, "images")
             if self.images:
                 if not os.path.exists(images_folder):
                     os.makedirs(images_folder)
                 self.extract_images(self.shape, images_folder)
 
             if self.generate_assembly:
-                assembly_graph_path = f"{self.subfolder}/{self.name_without_extension}_assembly.graphml"
+                assembly_graph_path = os.path.join(self.subfolder, f"{self.name_without_extension}_assembly.graphml")
                 if self.skip_existing and os.path.exists(assembly_graph_path):
                     logging.info(f"Skipped assembly graph for {self.filename} (already exists)")
                     skip_msg = f"{Fore.YELLOW} {self.filename} assembly graph already exists, skipping{Style.RESET_ALL}"
@@ -78,11 +100,11 @@ class StepFileProcessor:
 
                     if self.save_pdf:
                         logging.info(f"Saving assembly graph as PDF for {self.filename}")
-                        assembly_graph.save_pdf(f"{self.subfolder}/{self.name_without_extension}_assembly")
+                        assembly_graph.save_pdf(os.path.join(self.subfolder, f"{self.name_without_extension}_assembly"))
 
                     if self.save_html:
                         logging.info(f"Saving assembly graph as HTML for {self.filename}")
-                        assembly_graph.save_html(f"{self.subfolder}/{self.name_without_extension}_assembly.html")
+                        assembly_graph.save_html(os.path.join(self.subfolder, f"{self.name_without_extension}_assembly.html"))
 
                 if self.generate_stats:
                     statistics['assembly'] = {
@@ -93,7 +115,7 @@ class StepFileProcessor:
                     }
 
             if self.generate_hierarchical:
-                hierarchical_graph_path = f"{self.subfolder}/{self.name_without_extension}_hierarchical.graphml"
+                hierarchical_graph_path = os.path.join(self.subfolder, f"{self.name_without_extension}_hierarchical.graphml")
                 if self.skip_existing and os.path.exists(hierarchical_graph_path):
                     logging.info(f"Skipped hierarchical graph for {self.filename} (already exists)")
                     skip_msg = f"{Fore.YELLOW} {self.filename} hierarchical graph already exists, skipping{Style.RESET_ALL}"
@@ -122,7 +144,7 @@ class StepFileProcessor:
                 metadata_generator = MetadataGenerator()
                 metadata = metadata_generator.generate(product_names, self.filename, images_folder)
                 if metadata:
-                    metadata_path = f"{self.subfolder}/{self.name_without_extension}_metadata.json"
+                    metadata_path = os.path.join(self.subfolder, f"{self.name_without_extension}_metadata.json")
                     with open(metadata_path, 'w') as f:
                         json.dump(metadata, f, indent=2)
 
@@ -133,7 +155,7 @@ class StepFileProcessor:
                         }
 
             if self.generate_stats:
-                stats_path = f"{self.subfolder}/{self.name_without_extension}_statistics.json"
+                stats_path = os.path.join(self.subfolder, f"{self.name_without_extension}_statistics.json")
                 with open(stats_path, 'w') as f:
                     json.dump(statistics, f, indent=2)
 
@@ -148,43 +170,67 @@ class StepFileProcessor:
 
     def _count_graph_nodes_by_type(self, graph, node_type):
         return len([n for n, attr in graph.nodes(data=True) if attr.get('shape_type') == node_type])
-    
-    def extract_images(self, shape, output_folder): 
-        display, start_display, add_menu, add_function_to_menu = init_display() 
-        display.Context.RemoveAll(True) 
-        display.Context.Display(AIS_Shape(shape), True) 
-        display.FitAll() 
- 
-        # Save an image of the full assembly 
-        full_assembly_path = os.path.join(output_folder, f"{self.name_without_extension}_full_assembly.png") 
-        display.View.Dump(full_assembly_path) 
-        logging.info(f"Saved full assembly image: {full_assembly_path}") 
- 
-        # Extract individual part images 
-        for i, (part_name, part_shape) in enumerate(self.parts): 
-            if part_shape.ShapeType() in [TopAbs_SOLID, TopAbs_COMPOUND]: 
-                ais_shape = AIS_Shape(part_shape) 
- 
-                display.Context.RemoveAll(True) 
-                display.Context.Display(ais_shape, True) 
-                display.FitAll() 
- 
-                display.View.Redraw() 
-                time.sleep(0.1) 
- 
-                # Generate a valid filename from the part name 
-                safe_part_name = re.sub(r'[^\w\-_\. ]', '_', part_name) if part_name else f"unnamed_part_{i+1}" 
-                image_path = os.path.join(output_folder, f"{safe_part_name}.png") 
-                 
-                # Ensure unique filenames 
-                counter = 1 
-                while os.path.exists(image_path): 
-                    image_path = os.path.join(output_folder, f"{safe_part_name}_{counter}.png") 
-                    counter += 1 
- 
-                display.View.Dump(image_path) 
-                logging.info(f"Saved part image: {image_path}") 
- 
-        display.Context.RemoveAll(True) 
-        display.View.Redraw() 
-        display.Repaint() 
+
+    def extract_images(self, shape, output_folder):
+        """
+        Extracts images of the assembly and individual parts.
+        Supports headless operation on Linux servers.
+        """
+        display_manager = None
+
+        if self.headless:
+            if Display is None:
+                logging.error("pyvirtualdisplay is not installed. Unable to run in headless mode.")
+                raise ImportError("pyvirtualdisplay is required for headless mode.")
+            try:
+                display_manager = Display(visible=0, size=(800, 600))
+                display_manager.start()
+                logging.info("Initialized virtual display for headless operation.")
+            except Exception as e:
+                logging.error(f"Failed to initialize virtual display: {e}")
+                raise
+
+        try:
+            display, start_display, add_menu, add_function_to_menu = init_display()
+            display.Context.RemoveAll(True)
+            display.Context.Display(AIS_Shape(shape), True)
+            display.FitAll()
+
+            # Save an image of the full assembly
+            full_assembly_path = os.path.join(output_folder, f"{self.name_without_extension}_full_assembly.png")
+            display.View.Dump(full_assembly_path)
+            logging.info(f"Saved full assembly image: {full_assembly_path}")
+
+            # Extract individual part images
+            for i, (part_name, part_shape) in enumerate(self.parts):
+                if part_shape.ShapeType() in [TopAbs_SOLID, TopAbs_COMPOUND]:
+                    ais_shape = AIS_Shape(part_shape)
+
+                    display.Context.RemoveAll(True)
+                    display.Context.Display(ais_shape, True)
+                    display.FitAll()
+
+                    display.View.Redraw()
+                    time.sleep(0.1)
+
+                    # Generate a valid filename from the part name
+                    safe_part_name = re.sub(r'[^\w\-_\. ]', '_', part_name) if part_name else f"unnamed_part_{i+1}"
+                    image_path = os.path.join(output_folder, f"{safe_part_name}.png")
+
+                    # Ensure unique filenames
+                    counter = 1
+                    while os.path.exists(image_path):
+                        image_path = os.path.join(output_folder, f"{safe_part_name}_{counter}.png")
+                        counter += 1
+
+                    display.View.Dump(image_path)
+                    logging.info(f"Saved part image: {image_path}")
+
+            display.Context.RemoveAll(True)
+            display.View.Redraw()
+            display.Repaint()
+
+        finally:
+            if display_manager:
+                display_manager.stop()
+                logging.info("Terminated virtual display for headless operation.")

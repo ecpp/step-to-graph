@@ -78,7 +78,7 @@ class MetadataGenerator:
                     buffer = io.BytesIO()
                     img.save(buffer, format="JPEG", optimize=True, quality=75)
                     #also save to local
-                    img.save(os.path.join(images_folder, image_file), format="JPEG", optimize=True, quality=75)
+                    #img.save(os.path.join(images_folder, image_file), format="JPEG", optimize=True, quality=75)
                     compressed_image = buffer.getvalue()
                     encoded_string = base64.b64encode(compressed_image).decode('utf-8')
                     encoded_images.append(encoded_string)

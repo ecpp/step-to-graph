@@ -11,7 +11,7 @@ def worker_init(output_folder):
     setup_logging(output_folder)
 
 def process_single_file(args):
-    file_path, output_folder, skip_existing, generate_metadata_flag, generate_assembly, generate_hierarchical, save_pdf, save_html, no_self_connections, generate_stats, images = args
+    file_path, output_folder, skip_existing, generate_metadata_flag, generate_assembly, generate_hierarchical, save_pdf, save_html, no_self_connections, generate_stats, images, headless = args
 
     process_id = multiprocessing.current_process().pid
 
@@ -28,13 +28,14 @@ def process_single_file(args):
         save_html=save_html,
         no_self_connections=no_self_connections,
         generate_stats=generate_stats,
-        images=images
+        images=images,
+        headless=headless
     )
 
     result = processor.process()
     return result
 
-def process_step_files(folder_path, output_folder, skip_existing, num_processes, generate_metadata_flag, generate_assembly, generate_hierarchical, save_pdf, save_html, no_self_connections, generate_stats, images):
+def process_step_files(folder_path, output_folder, skip_existing, num_processes, generate_metadata_flag, generate_assembly, generate_hierarchical, save_pdf, save_html, no_self_connections, generate_stats, images, headless):
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
@@ -48,7 +49,7 @@ def process_step_files(folder_path, output_folder, skip_existing, num_processes,
     print(f"{Fore.YELLOW}Processing {Fore.RED}{len(step_files)}{Style.RESET_ALL} files using {Fore.RED}{num_processes}{Style.RESET_ALL} processes{Style.RESET_ALL}")
 
     args_list = [(file_path, output_folder, skip_existing, generate_metadata_flag,
-                  generate_assembly, generate_hierarchical, save_pdf, save_html, no_self_connections, generate_stats, images) for file_path in step_files]  # Include generate_stats and images
+                  generate_assembly, generate_hierarchical, save_pdf, save_html, no_self_connections, generate_stats, images, headless) for file_path in step_files]  # Include generate_stats and images
     with multiprocessing.Pool(processes=num_processes, initializer=worker_init, initargs=(output_folder,)) as pool:
         results = list(tqdm(pool.imap(process_single_file, args_list),
                             total=len(step_files), desc="Overall Progress"))
