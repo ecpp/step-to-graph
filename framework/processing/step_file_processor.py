@@ -12,56 +12,18 @@ from OCC.Extend.DataExchange import read_step_file
 from OCC.Core.TopExp import TopExp_Explorer
 from OCC.Core.TopAbs import TopAbs_SOLID, TopAbs_COMPOUND
 import time
-from contextlib import contextmanager
-import gc
-import sys
+
 from processing.step_file import StepFile
 from graphs.assembly_graph import AssemblyGraph
 from graphs.hierarchical_graph import HierarchicalGraph
 from metadata.metadata_generator import MetadataGenerator
-
+from utils.output_utils import suppress_output
 try:
     from pyvirtualdisplay import Display
 except ImportError:
     Display = None
 
-@contextmanager
-def suppress_output():
-    """
-    A context manager that suppresses all output to stdout and stderr,
-    including output from C extensions and other lower-level libraries.
-    """
-    with open(os.devnull, 'w') as devnull:
-        # Flush any existing output
-        sys.stdout.flush()
-        sys.stderr.flush()
-        
-        # Save the original file descriptors
-        original_stdout_fd = os.dup(1)
-        original_stderr_fd = os.dup(2)
-
-        try:
-            # Redirect stdout and stderr to devnull
-            os.dup2(devnull.fileno(), 1)
-            os.dup2(devnull.fileno(), 2)
-            
-            # Also redirect sys.stdout and sys.stderr
-            sys.stdout = open(os.devnull, 'w')
-            sys.stderr = open(os.devnull, 'w')
-            
-            yield
-        finally:
-            # Restore the original file descriptors
-            os.dup2(original_stdout_fd, 1)
-            os.dup2(original_stderr_fd, 2)
-            
-            # Close the duplicated file descriptors
-            os.close(original_stdout_fd)
-            os.close(original_stderr_fd)
-            
-            # Restore sys.stdout and sys.stderr
-            sys.stdout = sys.__stdout__
-            sys.stderr = sys.__stderr__
+_global_display = None
 
 class StepFileProcessor:
     def __init__(self, file_path, output_folder, skip_existing, generate_metadata_flag,
@@ -216,8 +178,8 @@ class StepFileProcessor:
         Extracts images of the assembly and individual parts.
         Supports headless operation on Linux servers.
         """
+        global _global_display
         display_manager = None
-        display = None
         
         try:
             if self.headless:
@@ -225,7 +187,6 @@ class StepFileProcessor:
                     logging.error("pyvirtualdisplay is not installed. Unable to run in headless mode.")
                     raise ImportError("pyvirtualdisplay is required for headless mode.")
                 try:
-                    # Increase virtual display size and use different backend
                     display_manager = Display(visible=0, size=(1024, 768), backend='xvfb')
                     display_manager.start()
                     logging.info("Initialized virtual display for headless operation.")
@@ -233,21 +194,31 @@ class StepFileProcessor:
                     logging.error(f"Failed to initialize virtual display: {e}")
                     raise
             
+            # Force cleanup before initialization
+            import gc
+            gc.collect()
+            
             with suppress_output():
-                # Add timeout for display initialization
-                max_attempts = 3
-                for attempt in range(max_attempts):
-                    try:
-                        display, start_display, add_menu, add_function_to_menu = init_display()
-                        # Force garbage collection of any previous displays
-                        import gc
-                        gc.collect()
-                        break
-                    except Exception as e:
-                        if attempt == max_attempts - 1:
-                            raise
-                        logging.warning(f"Display initialization attempt {attempt + 1} failed, retrying...")
-                        time.sleep(1)
+                try:
+                    if _global_display is None:
+                        logging.info("Initializing new display")
+                        _global_display, start_display, add_menu, add_function_to_menu = init_display()
+                    else:
+                        logging.info("Using existing display")
+                        # Clean up existing display
+                        _global_display.Context.RemoveAll(True)
+                        _global_display.View.Redraw()
+                        _global_display.Repaint()
+                    
+                    display = _global_display
+                    
+                except Exception as e:
+                    logging.warning(f"Display initialization error: {e}")
+                    # If failed, try one more time after forced cleanup
+                    time.sleep(1)
+                    gc.collect()
+                    _global_display, start_display, add_menu, add_function_to_menu = init_display()
+                    display = _global_display
 
             # Process images in batches to limit memory usage
             batch_size = 2
@@ -305,6 +276,7 @@ class StepFileProcessor:
                         display.Context.RemoveAll(True)
                         display.View.Redraw()
                         display.Repaint()
+                        time.sleep(0.1)
                         
                     except Exception as part_error:
                         logging.error(f"Error processing part {part_name}: {part_error}")
