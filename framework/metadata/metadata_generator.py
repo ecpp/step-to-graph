@@ -9,13 +9,13 @@ from PIL import Image
 import io
 
 class MetadataGenerator:
-    def __init__(self, api_key=None):
+    def __init__(self, api_key=None, images_metadata=False):
         if api_key is None:
             api_key = os.getenv('OPENAI_API_KEY')
         if not api_key:
             raise ValueError("OpenAI API key not found in environment variables")
         self.client = openai.OpenAI(api_key=api_key)
-
+        self.images_metadata = images_metadata
     def generate(self, product_names: List[str], filename: str, images_folder: Optional[str] = None):
         if product_names:
             prompt = (
@@ -25,7 +25,7 @@ class MetadataGenerator:
                 "1. A very brief description (but not too generic) of what this assembly might be (json key description)\n"
                 "2. Potential categories (not too generic) or tags for the assembly (json key categories)\n"
                 "3. Estimated complexity (low, medium, high) (json key complexity)\n"
-                "4. Possible industry or application (json key industry)\n"
+                "4. Possible industry or application not too generic (json key industry)\n"
                 "5. Simplified names of components, for example if 'shaft_holder001' is a component, the name should be 'shaft_holder' or if it does not make sense do not include it (json key components)\n"
                 f"Product names: {', '.join(product_names)}\n"
                 "Provide the response as a JSON object."
@@ -45,7 +45,7 @@ class MetadataGenerator:
 
                 metadata = json.loads(content)
 
-                if metadata == {} and images_folder:
+                if metadata == {} and images_folder and self.images_metadata:
                     logging.warning(f"No metadata generated using part names for {filename}, trying with images")
                     return self.generate_from_images(images_folder, filename)
                 logging.info(f"Metadata generated for {filename}")
@@ -53,10 +53,10 @@ class MetadataGenerator:
 
             except Exception as e:
                 logging.error(f"Error generating metadata with product names: {str(e)}")
-                if images_folder:
+                if images_folder and self.images_metadata:
                     return self.generate_from_images(images_folder, filename)
                 return None
-        elif images_folder:
+        elif images_folder and self.images_metadata:
             return self.generate_from_images(images_folder, filename)
         else:
             logging.warning("No product names or images provided for metadata generation.")
@@ -89,7 +89,7 @@ class MetadataGenerator:
                 "1. A very brief description (but not too generic) of what this assembly might be (json key description)\n"
                 "2. Potential categories (not too generic) or tags for the assembly (json key categories)\n"
                 "3. Estimated complexity (low, medium, high) (json key complexity)\n"
-                "4. Possible industry or application (json key industry)\n"
+                "4. Possible industry or application try to be specific (json key industry)\n"
                 "5. Simplified names of components present in the images (json key components)\n"
                 "Provide the response as a JSON object."
             )

@@ -22,6 +22,8 @@ if __name__ == "__main__":
                         help="Use all available CPU cores for maximum performance")
     parser.add_argument("--generate-metadata", action="store_true",
                         help="Generate metadata using OpenAI GPT")
+    parser.add_argument("--images-metadata", action="store_true",
+                        help="Generate metadata from images if it is not possible to generate using part names")
     parser.add_argument("--log", action="store_true", help="Enable logging")
     parser.add_argument("--assembly", action="store_true",
                         help="Generate assembly graph")
@@ -63,15 +65,18 @@ if __name__ == "__main__":
     else:
         logging.disable(logging.CRITICAL)
 
-    if not (args.assembly or args.hierarchical):
-        parser.error(
-            "At least one of --assembly or --hierarchical must be specified")
+    # if not (args.assembly or args.hierarchical):
+    #     parser.error(
+    #         "At least one of --assembly or --hierarchical must be specified")
 
     if args.save_pdf and not args.assembly:
         parser.error("Save PDF option requires assembly graph generation")
 
     if args.save_html and not args.assembly:
         parser.error("Save HTML option requires assembly graph generation")
+        
+    if args.images_metadata and not args.images:
+        parser.error("Images metadata option requires images extraction")
 
     try:
         process_step_files(
@@ -87,6 +92,7 @@ if __name__ == "__main__":
             no_self_connections=args.no_self_connections,
             generate_stats=args.stats,
             images=args.images,
+            images_metadata=args.images_metadata,
             headless=args.headless
         )
     except KeyboardInterrupt:
