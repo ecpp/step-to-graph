@@ -16,8 +16,8 @@ if __name__ == "__main__":
                         help="Folder to save output files")
     parser.add_argument("--process-all", action="store_true",
                         help="Process all files, including those already processed")
-    parser.add_argument("--processes", type=int, default=max(1, multiprocessing.cpu_count() // 2),
-                        help="Number of processes to use (default: number of CPUs / 2, minimum 1)")
+    parser.add_argument("--processes", type=int, default=max(1, multiprocessing.cpu_count() // 4),
+                        help="Number of processes to use (default: number of CPUs / 4, minimum 1)")
     parser.add_argument("--max-performance", action="store_true",
                         help="Use all available CPU cores for maximum performance")
     parser.add_argument("--generate-metadata", action="store_true",

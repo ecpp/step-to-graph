@@ -12,6 +12,7 @@ from OCC.Extend.DataExchange import read_step_file
 from OCC.Core.TopExp import TopExp_Explorer
 from OCC.Core.TopAbs import TopAbs_SOLID, TopAbs_COMPOUND
 import time
+import gc
 
 from processing.step_file import StepFile
 from graphs.assembly_graph import AssemblyGraph
@@ -23,7 +24,6 @@ try:
 except ImportError:
     Display = None
 
-_global_display = None
 
 class StepFileProcessor:
     def __init__(self, file_path, output_folder, skip_existing, generate_metadata_flag,
@@ -74,6 +74,7 @@ class StepFileProcessor:
             logging.info(f"Reading STEP file: {self.filename}")
             step_file = StepFile(self.file_path)
             self.parts, self.shape = step_file.read()
+            logging.info(f"STEP file read complete for {self.filename}")
 
             statistics = {}
             images_folder = os.path.join(self.subfolder, "images")
@@ -178,138 +179,68 @@ class StepFileProcessor:
         Extracts images of the assembly and individual parts.
         Supports headless operation on Linux servers.
         """
-        global _global_display
         display_manager = None
-        
-        try:
-            if self.headless:
-                if Display is None:
-                    logging.error("pyvirtualdisplay is not installed. Unable to run in headless mode.")
-                    raise ImportError("pyvirtualdisplay is required for headless mode.")
-                try:
-                    display_manager = Display(visible=0, size=(1024, 768), backend='xvfb')
-                    display_manager.start()
-                    logging.info("Initialized virtual display for headless operation.")
-                except Exception as e:
-                    logging.error(f"Failed to initialize virtual display: {e}")
-                    raise
-            
-            # Force cleanup before initialization
-            import gc
-            gc.collect()
-            
-            with suppress_output():
-                try:
-                    if _global_display is None:
-                        logging.info("Initializing new display")
-                        _global_display, start_display, add_menu, add_function_to_menu = init_display()
-                    else:
-                        logging.info("Using existing display")
-                        # Clean up existing display
-                        _global_display.Context.RemoveAll(True)
-                        _global_display.View.Redraw()
-                        _global_display.Repaint()
-                    
-                    display = _global_display
-                    
-                except Exception as e:
-                    logging.warning(f"Display initialization error: {e}")
-                    # If failed, try one more time after forced cleanup
-                    time.sleep(1)
-                    gc.collect()
-                    _global_display, start_display, add_menu, add_function_to_menu = init_display()
-                    display = _global_display
 
-            # Process images in batches to limit memory usage
-            batch_size = 2
-            
-            # Save full assembly first
+        if self.headless:
+            if Display is None:
+                logging.error("pyvirtualdisplay is not installed. Unable to run in headless mode.")
+                raise ImportError("pyvirtualdisplay is required for headless mode.")
             try:
-                display.Context.RemoveAll(True)
-                display.Context.Display(AIS_Shape(shape), True)
-                display.FitAll()
-                
-                full_assembly_path = os.path.join(output_folder, f"{self.name_without_extension}_full_assembly.png")
-                display.View.Dump(full_assembly_path)
-                logging.info(f"Saved full assembly image: {full_assembly_path}")
-                
-                # Force cleanup after assembly
-                display.Context.RemoveAll(True)
-                display.View.Redraw()
-                display.Repaint()
+                display_manager = Display(visible=0, size=(800, 600))
+                display_manager.start()
+                logging.info("Initialized virtual display for headless operation.")
             except Exception as e:
-                logging.error(f"Error saving assembly image: {e}")
+                logging.error(f"Failed to initialize virtual display: {e}")
+                raise
 
-            # Process individual parts in batches
-            for i in range(0, len(self.parts), batch_size):
-                batch = self.parts[i:i + batch_size]
-                
-                for j, (part_name, part_shape) in enumerate(batch):
-                    try:
-                        if part_shape.ShapeType() not in [TopAbs_SOLID, TopAbs_COMPOUND]:
-                            continue
-
-                        # Clear previous shape
-                        display.Context.RemoveAll(True)
-                        
-                        # Display and capture new shape
-                        ais_shape = AIS_Shape(part_shape)
-                        display.Context.Display(ais_shape, True)
-                        display.FitAll()
-                        display.View.Redraw()
-                        
-                        # Generate filename
-                        safe_part_name = re.sub(r'[^\w\-_\. ]', '_', part_name) if part_name else f"unnamed_part_{i+j+1}"
-                        image_path = os.path.join(output_folder, f"{safe_part_name}.png")
-                        
-                        # Ensure unique filenames
-                        counter = 1
-                        while os.path.exists(image_path):
-                            image_path = os.path.join(output_folder, f"{safe_part_name}_{counter}.png")
-                            counter += 1
-
-                        # Save image
-                        display.View.Dump(image_path)
-                        logging.info(f"Saved part image: {image_path}")
-                        
-                        # Cleanup after each part
-                        display.Context.RemoveAll(True)
-                        display.View.Redraw()
-                        display.Repaint()
-                        time.sleep(0.1)
-                        
-                    except Exception as part_error:
-                        logging.error(f"Error processing part {part_name}: {part_error}")
-                        continue
-
-                # Force cleanup after each batch
+        try:
+            with suppress_output(): 
+                display, start_display, add_menu, add_function_to_menu = init_display()
                 display.Context.RemoveAll(True)
-                display.View.Redraw()
-                display.Repaint()
-                gc.collect()
-                time.sleep(0.25)  # Small delay between batches
+                ais_shape = AIS_Shape(shape)
+                display.Context.Display(ais_shape, True)
+                display.FitAll()
 
-        except Exception as e:
-            logging.error(f"Error during image extraction: {str(e)}")
-            raise
-        finally:
-            # Thorough cleanup
-            if display:
-                try:
+            # Save an image of the full assembly
+            full_assembly_path = os.path.join(output_folder, f"{self.name_without_extension}_full_assembly.png")
+            display.View.Dump(full_assembly_path)
+            logging.info(f"Saved full assembly image: {full_assembly_path}")
+
+            # Extract individual part images
+            for i, (part_name, part_shape) in enumerate(self.parts):
+                if part_shape.ShapeType() in [TopAbs_SOLID, TopAbs_COMPOUND]:
+                    ais_shape = AIS_Shape(part_shape)
+
                     display.Context.RemoveAll(True)
-                    display.View.Redraw()
-                    display.Repaint()
-                    # Force close the display
-                    display.Viewer.Delete()
-                    display.View.Delete()
-                    del display
-                    gc.collect()
-                except Exception as cleanup_error:
-                    logging.warning(f"Error during display cleanup: {cleanup_error}")
+                    display.Context.Display(ais_shape, True)
+                    display.FitAll()
 
+                    display.View.Redraw()
+                    time.sleep(0.1)
+
+                    # Generate a valid filename from the part name
+                    safe_part_name = re.sub(r'[^\w\-_\. ]', '_', part_name) if part_name else f"unnamed_part_{i+1}"
+                    image_path = os.path.join(output_folder, f"{safe_part_name}.png")
+
+                    # Ensure unique filenames
+                    counter = 1
+                    while os.path.exists(image_path):
+                        image_path = os.path.join(output_folder, f"{safe_part_name}_{counter}.png")
+                        counter += 1
+
+                    display.View.Dump(image_path)
+                    logging.info(f"Saved part image: {image_path}")
+
+            display.Context.RemoveAll(True)
+            del ais_shape
+            display.View.Redraw()
+            display.Repaint()
+            display.Viewer.Delete()
+            display.View.Delete()
+            del display
+            gc.collect()
+
+        finally:
             if display_manager:
-                try:
-                    display_manager.stop()
-                    logging.info("Terminated virtual display for headless operation.")
-                except Exception as display_error:
-                    logging.warning(f"Error stopping virtual display: {display_error}")
+                display_manager.stop()
+                logging.info("Terminated virtual display for headless operation.")

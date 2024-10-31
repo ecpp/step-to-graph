@@ -3,6 +3,8 @@ import logging
 import multiprocessing
 from colorama import init, Fore, Style
 from tqdm import tqdm
+from multiprocessing import Pool
+from functools import partial
 
 from processing.step_file_processor import StepFileProcessor
 from utils.logging_utils import setup_logging
@@ -34,9 +36,13 @@ def process_single_file(args):
     )
 
     result = processor.process()
+    logging.info(f"Processing complete for {file_path}")
     return result
 
-def process_step_files(folder_path, output_folder, skip_existing, num_processes, generate_metadata_flag, generate_assembly, generate_hierarchical, save_pdf, save_html, no_self_connections, generate_stats, images, images_metadata, headless):
+def process_step_files(folder_path, output_folder, skip_existing, num_processes,
+                       generate_metadata_flag, generate_assembly, generate_hierarchical,
+                       save_pdf, save_html, no_self_connections, generate_stats,
+                       images, images_metadata, headless):
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
@@ -49,13 +55,26 @@ def process_step_files(folder_path, output_folder, skip_existing, num_processes,
 
     print(f"{Fore.YELLOW}Processing {Fore.RED}{len(step_files)}{Style.RESET_ALL} files using {Fore.RED}{num_processes}{Style.RESET_ALL} processes{Style.RESET_ALL}")
 
-    args_list = [(file_path, output_folder, skip_existing, generate_metadata_flag,
-                  generate_assembly, generate_hierarchical, save_pdf, save_html, no_self_connections, generate_stats, images, images_metadata, headless) for file_path in step_files]  # Include generate_stats and images
-    with multiprocessing.Pool(processes=num_processes, initializer=worker_init, initargs=(output_folder,)) as pool:
-        results = list(tqdm(pool.imap(process_single_file, args_list),
-                            total=len(step_files), desc="Overall Progress"))
+    args_list = [
+        (file_path, output_folder, skip_existing, generate_metadata_flag,
+         generate_assembly, generate_hierarchical, save_pdf, save_html,
+         no_self_connections, generate_stats, images, images_metadata, headless)
+        for file_path in step_files
+    ]
+
+    results = []
+    with Pool(processes=num_processes, initializer=worker_init, initargs=(output_folder,)) as pool:
+        try:
+            for result in tqdm(pool.imap_unordered(process_single_file, args_list),
+                               total=len(step_files), desc="Overall Progress"):
+                results.append(result)
+        except Exception as e:
+            logging.error(f"Error during multiprocessing: {e}")
+        finally:
+            pool.close()
+            pool.join()
 
     logging.info("Finished processing all files")
 
-    for result in results:
-        print(result)
+    for res in results:
+        print(res)
