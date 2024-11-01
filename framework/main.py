@@ -1,7 +1,6 @@
 import os
 import argparse
 import logging
-import multiprocessing
 from colorama import init, Fore, Style
 
 from workers import process_step_files
@@ -16,10 +15,6 @@ if __name__ == "__main__":
                         help="Folder to save output files")
     parser.add_argument("--process-all", action="store_true",
                         help="Process all files, including those already processed")
-    parser.add_argument("--processes", type=int, default=max(1, multiprocessing.cpu_count() // 4),
-                        help="Number of processes to use (default: number of CPUs / 4, minimum 1)")
-    parser.add_argument("--max-performance", action="store_true",
-                        help="Use all available CPU cores for maximum performance")
     parser.add_argument("--generate-metadata", action="store_true",
                         help="Generate metadata using OpenAI GPT")
     parser.add_argument("--images-metadata", action="store_true",
@@ -46,12 +41,6 @@ if __name__ == "__main__":
     step_files_folder = args.input
     output_folder = args.output
     skip_existing = not args.process_all
-    if args.max_performance:
-        num_processes = multiprocessing.cpu_count()
-        print(
-            f"{Fore.YELLOW}Warning: Using all {num_processes} CPU cores. This may affect system responsiveness.{Style.RESET_ALL}")
-    else:
-        num_processes = int(args.processes)
 
     if args.generate_metadata:
         api_key = os.getenv("OPENAI_API_KEY")
@@ -64,10 +53,6 @@ if __name__ == "__main__":
         logging.info("Logging enabled")
     else:
         logging.disable(logging.CRITICAL)
-
-    # if not (args.assembly or args.hierarchical):
-    #     parser.error(
-    #         "At least one of --assembly or --hierarchical must be specified")
 
     if args.save_pdf and not args.assembly:
         parser.error("Save PDF option requires assembly graph generation")
@@ -83,12 +68,11 @@ if __name__ == "__main__":
             step_files_folder,
             output_folder,
             skip_existing,
-            num_processes,
             args.generate_metadata,
             args.assembly,
             args.hierarchical,
             args.save_pdf,
-            args.save_html,  # Pass the new argument
+            args.save_html,
             no_self_connections=args.no_self_connections,
             generate_stats=args.stats,
             images=args.images,

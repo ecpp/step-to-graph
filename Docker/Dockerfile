@@ -5,7 +5,17 @@ FROM continuumio/miniconda3
 WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y libgl1 xvfb
+RUN apt-get update && apt-get install -y \
+    libgl1-mesa-glx \
+    libgl1-mesa-dev \
+    xvfb \
+    xauth \
+    libx11-dev \
+    libxext-dev \
+    libxrender-dev \
+    libxtst-dev \
+    libxi-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy the current directory contents into the container
 COPY . /app

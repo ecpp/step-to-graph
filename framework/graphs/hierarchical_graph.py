@@ -1,7 +1,7 @@
 import networkx as nx
 from OCC.Core.TopExp import TopExp_Explorer
 from OCC.Core.TopAbs import TopAbs_SHELL, TopAbs_FACE, TopAbs_EDGE
-
+import logging
 class HierarchicalGraph:
     def __init__(self, shape):
         self.shape = shape

@@ -180,67 +180,71 @@ class StepFileProcessor:
         Supports headless operation on Linux servers.
         """
         display_manager = None
-
-        if self.headless:
-            if Display is None:
-                logging.error("pyvirtualdisplay is not installed. Unable to run in headless mode.")
-                raise ImportError("pyvirtualdisplay is required for headless mode.")
-            try:
-                display_manager = Display(visible=0, size=(800, 600))
-                display_manager.start()
-                logging.info("Initialized virtual display for headless operation.")
-            except Exception as e:
-                logging.error(f"Failed to initialize virtual display: {e}")
-                raise
-
+        display = None
+        logging.info(f"Extracting images started for {self.filename}")
+        
         try:
-            with suppress_output(): 
-                display, start_display, add_menu, add_function_to_menu = init_display()
-                display.Context.RemoveAll(True)
-                ais_shape = AIS_Shape(shape)
-                display.Context.Display(ais_shape, True)
-                display.FitAll()
+            if self.headless:
+                if Display is None:
+                    logging.error("pyvirtualdisplay is not installed. Unable to run in headless mode.")
+                    raise ImportError("pyvirtualdisplay is required for headless mode.")
+                try:
+                    display_manager = Display(visible=0, size=(800, 600))
+                    display_manager.start()
+                    logging.info("Initialized virtual display for headless operation.")
+                except Exception as e:
+                    logging.error(f"Failed to initialize virtual display: {e}")
+                    raise
 
-            # Save an image of the full assembly
+            
+            display, start_display, add_menu, add_function_to_menu = init_display()
+            
+            logging.debug(f"Initialized display for {self.filename}")
+            
+            # Save full assembly image
+            display.Context.RemoveAll(True)
+            ais_shape = AIS_Shape(shape)
+            display.Context.Display(ais_shape, True)
+            display.FitAll()
+            
             full_assembly_path = os.path.join(output_folder, f"{self.name_without_extension}_full_assembly.png")
             display.View.Dump(full_assembly_path)
             logging.info(f"Saved full assembly image: {full_assembly_path}")
-
+            
             # Extract individual part images
             for i, (part_name, part_shape) in enumerate(self.parts):
                 if part_shape.ShapeType() in [TopAbs_SOLID, TopAbs_COMPOUND]:
-                    ais_shape = AIS_Shape(part_shape)
-
                     display.Context.RemoveAll(True)
-                    display.Context.Display(ais_shape, True)
+                    ais_part = AIS_Shape(part_shape)
+                    display.Context.Display(ais_part, True)
                     display.FitAll()
-
-                    display.View.Redraw()
-                    time.sleep(0.1)
-
-                    # Generate a valid filename from the part name
+                    
                     safe_part_name = re.sub(r'[^\w\-_\. ]', '_', part_name) if part_name else f"unnamed_part_{i+1}"
                     image_path = os.path.join(output_folder, f"{safe_part_name}.png")
-
-                    # Ensure unique filenames
+                    
                     counter = 1
                     while os.path.exists(image_path):
                         image_path = os.path.join(output_folder, f"{safe_part_name}_{counter}.png")
                         counter += 1
-
+                    
                     display.View.Dump(image_path)
                     logging.info(f"Saved part image: {image_path}")
+                    display.Context.Remove(ais_part, True)
+                    del ais_part
 
-            display.Context.RemoveAll(True)
-            del ais_shape
-            display.View.Redraw()
-            display.Repaint()
-            display.Viewer.Delete()
-            display.View.Delete()
-            del display
-            gc.collect()
-
+        except Exception as e:
+            logging.error(f"Error during image extraction for {self.filename}: {str(e)}")
+            raise
+        
         finally:
-            if display_manager:
-                display_manager.stop()
-                logging.info("Terminated virtual display for headless operation.")
+            try:
+
+                if display_manager:
+                    display_manager.stop()
+                    del display_manager
+                
+                
+            except Exception as e:
+                logging.error(f"Error during display cleanup: {str(e)}")
+            
+            logging.info(f"Finished extracting images for {self.filename}")
