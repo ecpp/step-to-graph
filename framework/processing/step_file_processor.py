@@ -178,16 +178,15 @@ class StepFileProcessor:
                     self.display.View.Redraw()
                     time.sleep(0.2)
 
-                    # Generate a valid filename from the part name TODO: buna bak
-                    safe_part_name = re.sub(r'[^\w\-_\. ]', '_', part_name) if part_name else f"unnamed_part_{i+1}"
+                    if part_name:
+                        # For named parts, include the index to ensure uniqueness
+                        safe_part_name = re.sub(r'[^\w\-_\. ]', '_', f"{part_name}_{i+1}")
+                    else:
+                        # For unnamed parts, just use the index
+                        safe_part_name = f"unnamed_part_{i+1}"
+                    
                     image_path = os.path.join(output_folder, f"{safe_part_name}.png")
-
-                    # Ensure unique filenames
-                    counter = 1
-                    while os.path.exists(image_path):
-                        image_path = os.path.join(output_folder, f"{safe_part_name}_{counter}.png")
-                        counter += 1
-
+                    # Remove the while loop since names are now guaranteed unique
                     self.display.View.Dump(image_path)
                     logging.info(f"Saved part image: {image_path}")
 

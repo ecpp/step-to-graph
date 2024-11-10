@@ -8,21 +8,25 @@ from OCC.Display.SimpleGui import init_display
 from processing.step_file_processor import StepFileProcessor
 from utils.logging_utils import setup_logging
 import gc
+from functools import lru_cache
 
-# Declare global variables to hold the display instances for each process
-global_display = None
-global_start_display = None
-global_add_menu = None
-global_add_function_to_menu = None
+# Remove the global variables
+# Instead, create a process-specific cached display initializer
+@lru_cache(maxsize=None)
+def get_process_display():
+    """
+    Creates and caches a display instance per process.
+    The lru_cache decorator ensures one display per process since the cache is process-specific.
+    """
+    return init_display()
 
 def worker_init(output_folder):
     """
-    Initialize the worker process by setting up logging and initializing the display.
+    Initialize the worker process by setting up logging.
     """
     setup_logging(output_folder)
-    global global_display, global_start_display, global_add_menu, global_add_function_to_menu
-    # Initialize a new display for each worker process
-    global_display, global_start_display, global_add_menu, global_add_function_to_menu = init_display()
+    # Pre-warm the display cache for this process
+    get_process_display()
 
 def process_single_file(args):
     """
@@ -34,7 +38,9 @@ def process_single_file(args):
 
     logging.info(f"Process {process_id} started processing {file_path}")
 
-    # Access the global display initialized in worker_init
+    # Get the cached display for this process
+    display, start_display, add_menu, add_function_to_menu = get_process_display()
+    
     processor = StepFileProcessor(
         file_path=file_path,
         output_folder=output_folder,
@@ -48,7 +54,7 @@ def process_single_file(args):
         generate_stats=generate_stats,
         images=images,
         headless=headless,
-        display=global_display  # Pass the display to the processor
+        display=display  # Pass the process-specific display
     )
 
     result = processor.process()
