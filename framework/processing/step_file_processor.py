@@ -7,7 +7,7 @@ import platform
 from colorama import Fore, Style
 from tqdm import tqdm
 from OCC.Core.AIS import AIS_Shape
-from OCC.Display.SimpleGui import init_display
+
 from OCC.Extend.DataExchange import read_step_file
 from OCC.Core.TopExp import TopExp_Explorer
 from OCC.Core.TopAbs import TopAbs_SOLID, TopAbs_COMPOUND
@@ -18,16 +18,12 @@ from graphs.assembly_graph import AssemblyGraph
 from graphs.hierarchical_graph import HierarchicalGraph
 from metadata.metadata_generator import MetadataGenerator
 
-try:
-    from pyvirtualdisplay import Display
-except ImportError:
-    Display = None
 
 
 class StepFileProcessor:
     def __init__(self, file_path, output_folder, skip_existing, generate_metadata_flag,
                  generate_assembly, generate_hierarchical, save_pdf, save_html,
-                 no_self_connections, generate_stats, images, headless=None):
+                 no_self_connections, generate_stats, images, headless=None, display=None):
         self.file_path = file_path
         self.output_folder = output_folder
         self.skip_existing = skip_existing
@@ -46,26 +42,8 @@ class StepFileProcessor:
             os.makedirs(self.subfolder)
         self.parts = []
         self.shape = None
-        self.headless = self.determine_headless_mode(headless)
-
-    def determine_headless_mode(self, headless_arg):
-        """
-        Determines whether to run in headless mode based on user input and environment.
-        """
-        # If headless is explicitly set, use it
-        if headless_arg is not None:
-            return headless_arg
-
-        # Automatic detection
-        system = platform.system()
-        if system == 'Linux':
-            # Check if DISPLAY environment variable is set
-            if not os.getenv('DISPLAY'):
-                logging.info("Running in headless mode")
-                return True
-        # For other systems (e.g., Windows), assume display is available
-        logging.info("Running with display")
-        return False
+        self.headless = headless
+        self.display = display
 
     def process(self):
         try:
@@ -176,29 +154,16 @@ class StepFileProcessor:
         Extracts images of the assembly and individual parts.
         Supports headless operation on Linux servers.
         """
-        display_manager = None
-
-        if self.headless:
-            if Display is None:
-                logging.error("pyvirtualdisplay is not installed. Unable to run in headless mode.")
-                raise ImportError("pyvirtualdisplay is required for headless mode.")
-            try:
-                display_manager = Display(visible=0, size=(800, 600))
-                display_manager.start()
-                logging.info("Initialized virtual display for headless operation.")
-            except Exception as e:
-                logging.error(f"Failed to initialize virtual display: {e}")
-                raise
 
         try:
-            display, start_display, add_menu, add_function_to_menu = init_display()
-            display.Context.RemoveAll(True)
-            display.Context.Display(AIS_Shape(shape), True)
-            display.FitAll()
+            
+            self.display.Context.RemoveAll(True)
+            self.display.Context.Display(AIS_Shape(shape), True)
+            self.display.FitAll()
 
             # Save an image of the full assembly
             full_assembly_path = os.path.join(output_folder, f"{self.name_without_extension}_full_assembly.png")
-            display.View.Dump(full_assembly_path)
+            self.display.View.Dump(full_assembly_path)
             logging.info(f"Saved full assembly image: {full_assembly_path}")
 
             # Extract individual part images
@@ -206,14 +171,14 @@ class StepFileProcessor:
                 if part_shape.ShapeType() in [TopAbs_SOLID, TopAbs_COMPOUND]:
                     ais_shape = AIS_Shape(part_shape)
 
-                    display.Context.RemoveAll(True)
-                    display.Context.Display(ais_shape, True)
-                    display.FitAll()
+                    self.display.Context.RemoveAll(True)
+                    self.display.Context.Display(ais_shape, True)
+                    self.display.FitAll()
 
-                    display.View.Redraw()
-                    time.sleep(0.1)
+                    self.display.View.Redraw()
+                    time.sleep(0.2)
 
-                    # Generate a valid filename from the part name
+                    # Generate a valid filename from the part name TODO: buna bak
                     safe_part_name = re.sub(r'[^\w\-_\. ]', '_', part_name) if part_name else f"unnamed_part_{i+1}"
                     image_path = os.path.join(output_folder, f"{safe_part_name}.png")
 
@@ -223,14 +188,14 @@ class StepFileProcessor:
                         image_path = os.path.join(output_folder, f"{safe_part_name}_{counter}.png")
                         counter += 1
 
-                    display.View.Dump(image_path)
+                    self.display.View.Dump(image_path)
                     logging.info(f"Saved part image: {image_path}")
 
-            display.Context.RemoveAll(True)
-            display.View.Redraw()
-            display.Repaint()
+            self.display.Context.RemoveAll(True)
+            self.display.View.Redraw()
+            self.display.Repaint()
 
-        finally:
-            if display_manager:
-                display_manager.stop()
-                logging.info("Terminated virtual display for headless operation.")
+        except Exception as e:
+            logging.error(f"Error extracting images for {self.filename}: {str(e)}")
+            raise e
+
