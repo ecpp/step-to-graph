@@ -25,7 +25,6 @@ class DisplayManager:
     def initialize(cls, output_folder):
         with cls._lock:
             if cls._display is None:
-                setup_logging(output_folder)
                 cls._display, cls._start_display, cls._add_menu, cls._add_function_to_menu = init_display(size=(320, 240))
                 logging.info("Display initialized for process.")
 
@@ -43,11 +42,13 @@ class DisplayManager:
             cls._display.ResetView()
 
 
-def worker_init(output_folder):
+def worker_init(output_folder, images):
     """
     Initialize the worker process by setting up logging and display.
     """
-    DisplayManager.initialize(output_folder)
+    setup_logging(output_folder)
+    if images:
+        DisplayManager.initialize(output_folder)
 
 def process_single_file(args):
     """
@@ -148,7 +149,7 @@ def process_step_files(folder_path, output_folder, skip_existing, num_processes,
         ]
 
         results = []
-        executor = ProcessPoolExecutor(max_workers=num_processes, initializer=worker_init, initargs=(output_folder,))
+        executor = ProcessPoolExecutor(max_workers=num_processes, initializer=worker_init, initargs=(output_folder, images))
         # Submit all tasks to the executor
         future_to_file = {executor.submit(process_single_file, args): args[0] for args in args_list}
         
