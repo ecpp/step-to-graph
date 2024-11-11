@@ -65,15 +65,13 @@ class MetadataGenerator:
     def generate_from_images(self, images_folder: str, filename: str):
         try:
             encoded_images = []
-            image_files = [f for f in os.listdir(images_folder) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+            image_files = [f for f in os.listdir(images_folder) if f.endswith('_full_assembly.png')]
             
             for image_file in image_files:
                 image_path = os.path.join(images_folder, image_file)
                 with Image.open(image_path) as img:
                     # Convert to grayscale
                     img = img.convert('L')
-                    # Resize image (adjust dimensions as needed)
-                    img.thumbnail((300, 300))
                     # Compress image
                     buffer = io.BytesIO()
                     img.save(buffer, format="JPEG", optimize=True, quality=75)
@@ -84,7 +82,7 @@ class MetadataGenerator:
                     encoded_images.append(encoded_string)
 
             prompt = (
-                f"Based on the following images of a STEP file named '{filename}', generate a JSON metadata that includes:\n"
+                f"Based on the following assembly image of a STEP file, generate a JSON metadata that includes:\n"
                 "For potential categories consider at most 2 categories that are most likely.\n"
                 "1. A very brief description (but not too generic) of what this assembly might be (json key description)\n"
                 "2. Potential categories (not too generic) or tags for the assembly (json key categories)\n"

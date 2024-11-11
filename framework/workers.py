@@ -6,63 +6,94 @@ from colorama import Fore, Style
 from tqdm import tqdm
 from OCC.Display.SimpleGui import init_display
 from processing.step_file_processor import StepFileProcessor
-from utils.logging_utils import setup_logging
-import gc
-from functools import lru_cache
+from utils.logging_utils import setup_logging, log_process_memory
 import signal
+import gc
 
-# Remove the global variables
-# Instead, create a process-specific cached display initializer
-@lru_cache(maxsize=None)
-def get_process_display():
+class DisplayManager:
     """
-    Creates and caches a display instance per process.
-    The lru_cache decorator ensures one display per process since the cache is process-specific.
+    Manages display instances for each worker process.
+    Ensures that only one display is initialized per process.
     """
-    return init_display()
+    _display = None
+    _start_display = None
+    _add_menu = None
+    _add_function_to_menu = None
+    _lock = multiprocessing.Lock()
+
+    @classmethod
+    def initialize(cls, output_folder):
+        with cls._lock:
+            if cls._display is None:
+                setup_logging(output_folder)
+                cls._display, cls._start_display, cls._add_menu, cls._add_function_to_menu = init_display(size=(320, 240))
+                logging.info("Display initialized for process.")
+
+    @classmethod
+    def get_display(cls):
+        if cls._display is None:
+            raise RuntimeError("Display not initialized. Call initialize() first.")
+        return cls._display
+
+    @classmethod
+    def clear_display(cls):
+        if cls._display:
+            cls._display.Context.RemoveAll(True)
+            cls._display.Repaint()
+            cls._display.ResetView()
+
 
 def worker_init(output_folder):
     """
-    Initialize the worker process by setting up logging.
+    Initialize the worker process by setting up logging and display.
     """
-    setup_logging(output_folder)
-    # Pre-warm the display cache for this process
-    get_process_display()
+    DisplayManager.initialize(output_folder)
 
 def process_single_file(args):
     """
     Process a single STEP file using the StepFileProcessor.
     """
-    file_path, output_folder, skip_existing, generate_metadata_flag, generate_assembly, generate_hierarchical, save_pdf, save_html, no_self_connections, generate_stats, images, headless = args
+    try:
+        file_path, output_folder, skip_existing, generate_metadata_flag, generate_assembly, generate_hierarchical, save_pdf, save_html, no_self_connections, generate_stats, images, only_full_assembly = args
 
-    process_id = multiprocessing.current_process().pid
+        process_id = multiprocessing.current_process().pid
+        logging.info(f"Process {process_id} started processing {file_path}")
 
-    logging.info(f"Process {process_id} started processing {file_path}")
+        # Get the display for this process
+        if images:
+            display = DisplayManager.get_display()
+        else:
+            display = None
+        
+        processor = StepFileProcessor(
+            file_path=file_path,
+            output_folder=output_folder,
+            skip_existing=skip_existing,
+            generate_metadata_flag=generate_metadata_flag,
+            generate_assembly=generate_assembly,
+            generate_hierarchical=generate_hierarchical,
+            save_pdf=save_pdf,
+            save_html=save_html,
+            no_self_connections=no_self_connections,
+            generate_stats=generate_stats,
+            images=images,
+            only_full_assembly=only_full_assembly,
+            display=display  # Pass the process-specific display
+        )
 
-    # Get the cached display for this process
-    display, start_display, add_menu, add_function_to_menu = get_process_display()
-    
-    processor = StepFileProcessor(
-        file_path=file_path,
-        output_folder=output_folder,
-        skip_existing=skip_existing,
-        generate_metadata_flag=generate_metadata_flag,
-        generate_assembly=generate_assembly,
-        generate_hierarchical=generate_hierarchical,
-        save_pdf=save_pdf,
-        save_html=save_html,
-        no_self_connections=no_self_connections,
-        generate_stats=generate_stats,
-        images=images,
-        headless=headless,
-        display=display  # Pass the process-specific display
-    )
+        result = processor.process()
+        del processor
+        if display:
+            DisplayManager.clear_display()
+        return result
+    except Exception as e:
+        logging.error(f"Error processing file {file_path}: {e}")
+        return None
+    finally:
+        log_process_memory()
+        gc.collect()
 
-    result = processor.process()
-    gc.collect()
-    return result
-
-def process_step_files(folder_path, output_folder, skip_existing, num_processes, generate_metadata_flag, generate_assembly, generate_hierarchical, save_pdf, save_html, no_self_connections, generate_stats, images, headless):
+def process_step_files(folder_path, output_folder, skip_existing, num_processes, generate_metadata_flag, generate_assembly, generate_hierarchical, save_pdf, save_html, no_self_connections, generate_stats, images, only_full_assembly):
     """
     Process all STEP files in the specified folder using concurrent futures.
     """
@@ -111,7 +142,7 @@ def process_step_files(folder_path, output_folder, skip_existing, num_processes,
             (
                 file_path, output_folder, skip_existing, generate_metadata_flag,
                 generate_assembly, generate_hierarchical, save_pdf, save_html,
-                no_self_connections, generate_stats, images, headless
+                no_self_connections, generate_stats, images, only_full_assembly
             ) 
             for file_path in step_files
         ]

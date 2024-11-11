@@ -3,27 +3,22 @@ import logging
 import multiprocessing
 import json
 import re
-import platform
 from colorama import Fore, Style
 from tqdm import tqdm
 from OCC.Core.AIS import AIS_Shape
-
-from OCC.Extend.DataExchange import read_step_file
-from OCC.Core.TopExp import TopExp_Explorer
+import gc
 from OCC.Core.TopAbs import TopAbs_SOLID, TopAbs_COMPOUND
 import time
-
 from processing.step_file import StepFile
 from graphs.assembly_graph import AssemblyGraph
 from graphs.hierarchical_graph import HierarchicalGraph
 from metadata.metadata_generator import MetadataGenerator
 
 
-
 class StepFileProcessor:
     def __init__(self, file_path, output_folder, skip_existing, generate_metadata_flag,
                  generate_assembly, generate_hierarchical, save_pdf, save_html,
-                 no_self_connections, generate_stats, images, headless=None, display=None):
+                 no_self_connections, generate_stats, images, only_full_assembly, display=None):
         self.file_path = file_path
         self.output_folder = output_folder
         self.skip_existing = skip_existing
@@ -35,6 +30,7 @@ class StepFileProcessor:
         self.no_self_connections = no_self_connections
         self.generate_stats = generate_stats
         self.images = images
+        self.only_full_assembly = only_full_assembly
         self.filename = os.path.basename(file_path)
         self.name_without_extension = os.path.splitext(self.filename)[0]
         self.subfolder = os.path.join(self.output_folder, self.name_without_extension)
@@ -42,7 +38,6 @@ class StepFileProcessor:
             os.makedirs(self.subfolder)
         self.parts = []
         self.shape = None
-        self.headless = headless
         self.display = display
 
     def process(self):
@@ -150,51 +145,66 @@ class StepFileProcessor:
         return len([n for n, attr in graph.nodes(data=True) if attr.get('shape_type') == node_type])
 
     def extract_images(self, shape, output_folder):
-        """
-        Extracts images of the assembly and individual parts.
-        Supports headless operation on Linux servers.
-        """
-
         try:
-            
+            # Clear display before starting
             self.display.Context.RemoveAll(True)
-            self.display.Context.Display(AIS_Shape(shape), True)
-            self.display.FitAll()
+            
+            # Extract full assembly image
+            ais_shape = None
+            try:
+                ais_shape = AIS_Shape(shape)
+                self.display.Context.Display(ais_shape, True)
+                self.display.FitAll()
+                
+                full_assembly_path = os.path.join(output_folder, f"{self.name_without_extension}_full_assembly.png")
+                self.display.View.Dump(full_assembly_path)
+                logging.info(f"Saved full assembly image: {full_assembly_path}")
+            finally:
+                if ais_shape:
+                    self.display.Context.Remove(ais_shape, True)
+                    del ais_shape
+                    gc.collect()
+            
+            if self.only_full_assembly:
+                return
 
-            # Save an image of the full assembly
-            full_assembly_path = os.path.join(output_folder, f"{self.name_without_extension}_full_assembly.png")
-            self.display.View.Dump(full_assembly_path)
-            logging.info(f"Saved full assembly image: {full_assembly_path}")
-
-            # Extract individual part images
+            # Extract individual parts
             for i, (part_name, part_shape) in enumerate(self.parts):
-                if part_shape.ShapeType() in [TopAbs_SOLID, TopAbs_COMPOUND]:
-                    ais_shape = AIS_Shape(part_shape)
-
+                if part_shape.ShapeType() not in [TopAbs_SOLID, TopAbs_COMPOUND]:
+                    continue
+                
+                ais_shape = None
+                try:
                     self.display.Context.RemoveAll(True)
+                    
+                    ais_shape = AIS_Shape(part_shape)
                     self.display.Context.Display(ais_shape, True)
                     self.display.FitAll()
-
                     self.display.View.Redraw()
-                    time.sleep(0.2)
-
-                    if part_name:
-                        # For named parts, include the index to ensure uniqueness
-                        safe_part_name = re.sub(r'[^\w\-_\. ]', '_', f"{part_name}_{i+1}")
-                    else:
-                        # For unnamed parts, just use the index
-                        safe_part_name = f"unnamed_part_{i+1}"
+                    
+                    # For named parts, include the index to ensure uniqueness
+                    safe_part_name = re.sub(r'[^\w\-_\. ]', '_', f"{part_name}_{i+1}")
                     
                     image_path = os.path.join(output_folder, f"{safe_part_name}.png")
-                    # Remove the while loop since names are now guaranteed unique
                     self.display.View.Dump(image_path)
+
+                    # Wait until the file exists and is not empty
+                    timeout = 10  # seconds
+                    start_time = time.time()
+                    while not os.path.exists(image_path) or os.path.getsize(image_path) == 0:
+                        time.sleep(0.1)
+                        if time.time() - start_time > timeout:
+                            raise TimeoutError(f"Timeout waiting for image to be saved: {image_path}")
+                    
                     logging.info(f"Saved part image: {image_path}")
-
-            self.display.Context.RemoveAll(True)
-            self.display.View.Redraw()
-            self.display.Repaint()
-
-        except Exception as e:
-            logging.error(f"Error extracting images for {self.filename}: {str(e)}")
-            raise e
-
+                finally:
+                    if ais_shape:
+                        self.display.Context.Remove(ais_shape, True)
+                        del ais_shape
+                        gc.collect()
+                    
+                # Add small delay between parts to allow cleanup
+                time.sleep(0.1)
+            
+        finally:
+            gc.collect()

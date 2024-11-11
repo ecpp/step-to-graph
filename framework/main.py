@@ -37,8 +37,9 @@ if __name__ == "__main__":
                         help="Generate statistics for STEP files")
     parser.add_argument("--images", action="store_true",
                         help="Save images of parts in the assembly graph")
-    parser.add_argument("--headless", action="store_true",
-                        help="Run in headless mode")
+    parser.add_argument("--only-full-assembly", action="store_true",
+                        help="Only save full assembly image")
+
     args = parser.parse_args()
 
     step_files_folder = args.input
@@ -72,6 +73,9 @@ if __name__ == "__main__":
 
     if args.save_html and not args.assembly:
         parser.error("Save HTML option requires assembly graph generation")
+        
+    if args.only_full_assembly and not args.images:
+        parser.error("Only full assembly option requires image generation")
 
     try:
         process_step_files(
@@ -87,7 +91,7 @@ if __name__ == "__main__":
             no_self_connections=args.no_self_connections,
             generate_stats=args.stats,
             images=args.images,
-            headless=args.headless
+            only_full_assembly=args.only_full_assembly
         )
     except KeyboardInterrupt:
         logging.info("Process interrupted by user. Exiting gracefully...")
