@@ -12,8 +12,16 @@ from OCC.Extend.TopologyUtils import TopologyExplorer
 class ShapeUtils:
     @staticmethod
     def get_bounding_box(shape):
+        if shape is None:
+            raise ValueError("Shape is None")
+        
         bbox = Bnd_Box()
         brepbndlib.Add(shape, bbox)
+        
+        # Check if bbox is void
+        if bbox.IsVoid():
+            raise ValueError("Generated bounding box is void")
+        
         return bbox
 
     @staticmethod

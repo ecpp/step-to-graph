@@ -54,6 +54,18 @@ class StepFileProcessor:
                 self.extract_images(self.shape, images_folder)
 
             if self.generate_assembly:
+                # Add validation before creating assembly graph
+                if not self.parts:
+                    logging.error(f"No valid parts found in {self.filename}")
+                    error_msg = f"{Fore.RED} Error processing {self.filename}: No valid parts found{Style.RESET_ALL}"
+                    return error_msg
+                
+                valid_parts = [(name, shape) for name, shape in self.parts if shape is not None]
+                if not valid_parts:
+                    logging.error(f"No valid parts found in {self.filename}")
+                    error_msg = f"{Fore.RED} Error processing {self.filename}: No valid parts found{Style.RESET_ALL}"
+                    return error_msg
+                
                 assembly_graph_path = os.path.join(self.subfolder, f"{self.name_without_extension}_assembly.graphml")
                 if self.skip_existing and os.path.exists(assembly_graph_path):
                     logging.info(f"Skipped assembly graph for {self.filename} (already exists)")
