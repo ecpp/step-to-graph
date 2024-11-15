@@ -158,6 +158,10 @@ class StepFileProcessor:
 
     def extract_images(self, shape, output_folder):
         try:
+            full_assembly_path = os.path.join(output_folder, f"{self.name_without_extension}_full_assembly.png")
+            if os.path.exists(full_assembly_path):
+                logging.info(f"Full assembly image already exists, skipping image extraction: {full_assembly_path}")
+                return
             # Clear display before starting
             self.display.Context.RemoveAll(True)
             
@@ -195,7 +199,7 @@ class StepFileProcessor:
                     self.display.View.Redraw()
                     
                     # For named parts, include the index to ensure uniqueness
-                    safe_part_name = re.sub(r'[^\w\-_\. ]', '_', f"{part_name}_{i+1}")
+                    safe_part_name = re.sub(r'[^\w\-_\. ]', '_', part_name) if part_name else f"unnamed_part_{i+1}"
                     
                     image_path = os.path.join(output_folder, f"{safe_part_name}.png")
                     self.display.View.Dump(image_path)
