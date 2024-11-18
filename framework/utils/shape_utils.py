@@ -42,7 +42,9 @@ class ShapeUtils:
 
         # First attempt using distance tool
         dist_tool = BRepExtrema_DistShapeShape(shape1, shape2)
+        
         if dist_tool.IsDone() and dist_tool.Value() <= tolerance:
+            print(f"Distance: {dist_tool.Value()}")
             return True
 
         # Fallback to vertex distance
@@ -57,6 +59,7 @@ class ShapeUtils:
                     (v1[2] - v2[2]) ** 2
                 )
                 if dist <= tolerance:
+                    print(f"Vertices distance: {dist}")
                     return True
 
         return False

@@ -15,6 +15,13 @@ class StepFile:
         self.filename = filename
         self.parts = []
         self.main_shape = None
+        self.unnamed_counter = 0
+
+    def _get_unique_name(self, name):
+        if not name or name.lower() in ['noname', 'unnamed', 'untitled', '']:
+            name = f"unnamed_{self.unnamed_counter}"
+            self.unnamed_counter += 1
+        return name
 
     def read(self):
         if not os.path.isfile(self.filename):
@@ -65,7 +72,7 @@ class StepFile:
                 shape_disp = BRepBuilderAPI_Transform(
                     shape, loc_accumulated.Transformation()).Shape()
                 if shape_disp not in output_shapes:
-                    output_shapes[shape_disp] = lab.GetLabelName()
+                    output_shapes[shape_disp] = self._get_unique_name(lab.GetLabelName())
                 for i in range(l_subss.Length()):
                     lab_subs = l_subss.Value(i + 1)
                     shape_sub = shape_tool.GetShape(lab_subs)
@@ -73,7 +80,7 @@ class StepFile:
                         shape_sub, loc_accumulated.Transformation()
                     ).Shape()
                     if shape_to_disp not in output_shapes:
-                        output_shapes[shape_to_disp] = lab_subs.GetLabelName()
+                        output_shapes[shape_to_disp] = self._get_unique_name(lab_subs.GetLabelName())
 
         def _get_shapes():
             labels = TDF_LabelSequence()
