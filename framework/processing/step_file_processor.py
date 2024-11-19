@@ -7,13 +7,13 @@ from colorama import Fore, Style
 from tqdm import tqdm
 from OCC.Core.AIS import AIS_Shape
 import gc
-from OCC.Core.TopAbs import TopAbs_SOLID, TopAbs_COMPOUND
+from OCC.Core.TopAbs import TopAbs_SOLID, TopAbs_COMPOUND, TopAbs_SHELL, TopAbs_FACE
 import time
 from processing.step_file import StepFile
 from graphs.assembly_graph import AssemblyGraph
 from graphs.hierarchical_graph import HierarchicalGraph
 from metadata.metadata_generator import MetadataGenerator
-
+from utils.shape_utils import ShapeUtils
 
 class StepFileProcessor:
     def __init__(self, file_path, output_folder, skip_existing, generate_metadata_flag,
@@ -186,9 +186,10 @@ class StepFileProcessor:
 
             # Extract individual parts
             for i, (part_name, part_shape) in enumerate(self.parts):
-                if part_shape.ShapeType() not in [TopAbs_SOLID, TopAbs_COMPOUND]:
+                if not ShapeUtils.is_valid_shape_type(part_shape):
                     continue
-                
+                print(f"Processing part {part_name}")
+                print(f"Part shape type: {part_shape.ShapeType()}")
                 ais_shape = None
                 try:
                     self.display.Context.RemoveAll(True)

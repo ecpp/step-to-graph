@@ -31,6 +31,10 @@ class AssemblyGraph:
                     logging.warning(f"Skipping part {name}: Shape is None")
                     continue
                     
+                if not ShapeUtils.is_valid_shape_type(shape):
+                    logging.warning(f"Skipping part {name}: Not a valid solid, compound, or shell")
+                    continue
+                    
                 bbox = ShapeUtils.get_bounding_box(shape)
                 bbox_coords = (
                     bbox.CornerMin().X(),

@@ -3,12 +3,12 @@ from OCC.Core.BRepBndLib import brepbndlib
 from OCC.Core.Bnd import Bnd_Box
 from OCC.Core.BRepExtrema import BRepExtrema_DistShapeShape
 from OCC.Core.TopExp import TopExp_Explorer
-from OCC.Core.TopAbs import TopAbs_SHELL, TopAbs_FACE, TopAbs_EDGE, TopAbs_VERTEX
+from OCC.Core.TopAbs import TopAbs_SHELL, TopAbs_SOLID, TopAbs_COMPOUND, TopAbs_FACE, TopAbs_EDGE, TopAbs_VERTEX
 from OCC.Core.BRep import BRep_Tool
 from OCC.Core.TopLoc import TopLoc_Location
 from OCC.Core.BRepBuilderAPI import BRepBuilderAPI_Transform
 from OCC.Extend.TopologyUtils import TopologyExplorer
-
+from OCC.Core.TopoDS import TopoDS_Shape
 class ShapeUtils:
     @staticmethod
     def get_bounding_box(shape):
@@ -26,11 +26,15 @@ class ShapeUtils:
 
     @staticmethod
     def get_tolerance(shape):
-        # Example: Tolerance based on shape size
         bbox = ShapeUtils.get_bounding_box(shape)
         xmin, ymin, zmin, xmax, ymax, zmax = bbox.Get()
         diagonal = math.sqrt((xmax - xmin) ** 2 + (ymax - ymin) ** 2 + (zmax - zmin) ** 2)
-        return min(diagonal * 0.0001, 0.1)
+        
+        # Use 0.1% of diagonal with more appropriate bounds
+        base_tolerance = diagonal * 0.001  # 0.1% of diagonal
+        
+        # Clamp between 0.01 units and 1.0 units
+        return max(0.01, min(base_tolerance, 1.0))
 
     @staticmethod
     def are_connected(shape1, shape2):
@@ -44,7 +48,6 @@ class ShapeUtils:
         dist_tool = BRepExtrema_DistShapeShape(shape1, shape2)
         
         if dist_tool.IsDone() and dist_tool.Value() <= tolerance:
-            print(f"Distance: {dist_tool.Value()}")
             return True
 
         # Fallback to vertex distance
@@ -59,7 +62,6 @@ class ShapeUtils:
                     (v1[2] - v2[2]) ** 2
                 )
                 if dist <= tolerance:
-                    print(f"Vertices distance: {dist}")
                     return True
 
         return False
@@ -81,3 +83,12 @@ class ShapeUtils:
             vertices.append((point.X(), point.Y(), point.Z()))
             explorer.Next()
         return vertices
+    
+    @staticmethod
+    def is_valid_shape_type(shape):
+        """Check if the shape is a valid solid, compound, or shell."""
+        if not isinstance(shape, TopoDS_Shape):
+            return False
+        
+        shape_type = shape.ShapeType()
+        return shape_type in [TopAbs_SOLID, TopAbs_COMPOUND, TopAbs_SHELL, TopAbs_FACE]
