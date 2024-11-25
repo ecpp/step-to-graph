@@ -1,6 +1,8 @@
 demostep/
 input/
+input2/
 output/
+output2/
 stepfiles/
 *zip
 test.py
