@@ -162,17 +162,55 @@ class StepFileProcessor:
             if os.path.exists(full_assembly_path):
                 logging.info(f"Full assembly image already exists, skipping image extraction: {full_assembly_path}")
                 return
+
             # Clear display before starting
             self.display.Context.RemoveAll(True)
-            
-            # Extract full assembly image
+
+            # Extract individual parts first
+            if not self.only_full_assembly:
+                for i, (part_name, part_shape) in enumerate(self.parts):
+                    if not ShapeUtils.is_valid_shape_type(part_shape):
+                        continue
+                    print(f"Processing part {part_name}")
+                    print(f"Part shape type: {part_shape.ShapeType()}")
+                    ais_shape = None
+                    try:
+                        self.display.Context.RemoveAll(True)
+                        
+                        ais_shape = AIS_Shape(part_shape)
+                        self.display.Context.Display(ais_shape, True)
+                        self.display.FitAll()
+                        self.display.View.Redraw()
+                        
+                        safe_part_name = re.sub(r'[^\w\-_\. ]', '_', part_name) if part_name else f"unnamed_part_{i+1}"
+                        
+                        image_path = os.path.join(output_folder, f"{safe_part_name}.png")
+                        self.display.View.Dump(image_path)
+
+                        timeout = 10
+                        start_time = time.time()
+                        while not os.path.exists(image_path) or os.path.getsize(image_path) == 0:
+                            time.sleep(0.1)
+                            if time.time() - start_time > timeout:
+                                raise TimeoutError(f"Timeout waiting for image to be saved: {image_path}")
+                        
+                        logging.info(f"Saved part image: {image_path}")
+                    finally:
+                        if ais_shape:
+                            self.display.Context.Remove(ais_shape, True)
+                            del ais_shape
+                            gc.collect()
+                        
+                    time.sleep(0.1)
+
+            # Extract full assembly last
             ais_shape = None
             try:
+                self.display.Context.RemoveAll(True)
                 ais_shape = AIS_Shape(shape)
                 self.display.Context.Display(ais_shape, True)
                 self.display.FitAll()
                 
-                full_assembly_path = os.path.join(output_folder, f"{self.name_without_extension}_full_assembly.png")
                 self.display.View.Dump(full_assembly_path)
                 logging.info(f"Saved full assembly image: {full_assembly_path}")
             finally:
@@ -180,48 +218,6 @@ class StepFileProcessor:
                     self.display.Context.Remove(ais_shape, True)
                     del ais_shape
                     gc.collect()
-            
-            if self.only_full_assembly:
-                return
-
-            # Extract individual parts
-            for i, (part_name, part_shape) in enumerate(self.parts):
-                if not ShapeUtils.is_valid_shape_type(part_shape):
-                    continue
-                print(f"Processing part {part_name}")
-                print(f"Part shape type: {part_shape.ShapeType()}")
-                ais_shape = None
-                try:
-                    self.display.Context.RemoveAll(True)
-                    
-                    ais_shape = AIS_Shape(part_shape)
-                    self.display.Context.Display(ais_shape, True)
-                    self.display.FitAll()
-                    self.display.View.Redraw()
-                    
-                    # For named parts, include the index to ensure uniqueness
-                    safe_part_name = re.sub(r'[^\w\-_\. ]', '_', part_name) if part_name else f"unnamed_part_{i+1}"
-                    
-                    image_path = os.path.join(output_folder, f"{safe_part_name}.png")
-                    self.display.View.Dump(image_path)
-
-                    # Wait until the file exists and is not empty
-                    timeout = 10  # seconds
-                    start_time = time.time()
-                    while not os.path.exists(image_path) or os.path.getsize(image_path) == 0:
-                        time.sleep(0.1)
-                        if time.time() - start_time > timeout:
-                            raise TimeoutError(f"Timeout waiting for image to be saved: {image_path}")
-                    
-                    logging.info(f"Saved part image: {image_path}")
-                finally:
-                    if ais_shape:
-                        self.display.Context.Remove(ais_shape, True)
-                        del ais_shape
-                        gc.collect()
-                    
-                # Add small delay between parts to allow cleanup
-                time.sleep(0.1)
             
         finally:
             gc.collect()
