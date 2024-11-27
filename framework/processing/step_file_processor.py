@@ -171,8 +171,6 @@ class StepFileProcessor:
                 for i, (part_name, part_shape) in enumerate(self.parts):
                     if not ShapeUtils.is_valid_shape_type(part_shape):
                         continue
-                    print(f"Processing part {part_name}")
-                    print(f"Part shape type: {part_shape.ShapeType()}")
                     ais_shape = None
                     try:
                         self.display.Context.RemoveAll(True)

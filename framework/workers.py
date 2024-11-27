@@ -9,6 +9,7 @@ from processing.step_file_processor import StepFileProcessor
 from utils.logging_utils import setup_logging, log_process_memory
 import signal
 import gc
+import psutil
 
 class DisplayManager:
     """
@@ -94,6 +95,92 @@ def process_single_file(args):
         log_process_memory()
         gc.collect()
 
+class WorkBatch:
+    def __init__(self, files, max_batch_size=100_000_000):  # 100MB default
+        self.files = []
+        self.current_size = 0
+        self.max_batch_size = max_batch_size
+        
+    def add_file(self, file_path):
+        file_size = os.path.getsize(file_path)
+        if self.current_size + file_size <= self.max_batch_size:
+            self.files.append(file_path)
+            self.current_size += file_size
+            return True
+        return False
+
+def create_batches(files, max_batch_size):
+    batches = []
+    current_batch = WorkBatch(max_batch_size)
+    
+    for file in files:
+        if not current_batch.add_file(file):
+            batches.append(current_batch.files)
+            current_batch = WorkBatch(max_batch_size)
+            current_batch.add_file(file)
+    
+    if current_batch.files:
+        batches.append(current_batch.files)
+    return batches
+
+def process_batch(batch_args):
+    """Process multiple files in a single process"""
+    files, output_folder, *args = batch_args
+    results = []
+    
+    try:
+        display = DisplayManager.get_display() if args[-2] else None  # images flag
+        for file in files:
+            try:
+                processor = StepFileProcessor(file, output_folder, *args[:-1], display)
+                result = processor.process()
+                results.append((file, result))
+                del processor
+                gc.collect()
+            except Exception as e:
+                results.append((file, None))
+                logging.error(f"Error processing {file}: {e}")
+    finally:
+        if display:
+            DisplayManager.clear_display()
+        
+    return results
+
+def process_step_files_optimized(folder_path, output_folder, **kwargs):
+    # Get system information for adaptive processing
+    cpu_count = multiprocessing.cpu_count()
+    available_memory = psutil.virtual_memory().available
+    num_processes = min(kwargs.get('num_processes', cpu_count), cpu_count)
+    
+    # Calculate optimal batch size based on available memory
+    memory_per_process = available_memory / (num_processes)
+    batch_size = memory_per_process / 2  # Allow for processing overhead
+    
+    step_files = [
+        os.path.join(folder_path, f) 
+        for f in os.listdir(folder_path) 
+        if f.lower().endswith(('.step', '.stp'))
+    ]
+    
+    batches = create_batches(step_files, batch_size)
+    
+    with ProcessPoolExecutor(
+        max_workers=num_processes,
+        initializer=worker_init,
+        initargs=(output_folder, kwargs.get('images', False))
+    ) as executor:
+        futures = []
+        for batch in batches:
+            batch_args = (batch, output_folder, *kwargs.values())
+            futures.append(executor.submit(process_batch, batch_args))
+            
+        for future in tqdm(as_completed(futures), total=len(batches)):
+            try:
+                results = future.result()
+                # Process results as needed
+            except Exception as e:
+                logging.error(f"Batch processing failed: {e}")
+
 def process_step_files(folder_path, output_folder, skip_existing, num_processes, generate_metadata_flag, generate_assembly, generate_hierarchical, save_pdf, save_html, no_self_connections, generate_stats, images, only_full_assembly):
     """
     Process all STEP files in the specified folder using concurrent futures.
@@ -175,4 +262,3 @@ def process_step_files(folder_path, output_folder, skip_existing, num_processes,
             logging.info("Processing interrupted by user")
         else:
             logging.info("Finished processing all files")
-
