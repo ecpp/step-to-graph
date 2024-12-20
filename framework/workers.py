@@ -96,7 +96,7 @@ def process_single_file(args):
         gc.collect()
 
 class WorkBatch:
-    def __init__(self, files, max_batch_size=100_000_000):  # 100MB default
+    def __init__(self, files, max_batch_size=200_000_000):  # 200MB default
         self.files = []
         self.current_size = 0
         self.max_batch_size = max_batch_size
