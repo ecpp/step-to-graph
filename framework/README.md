@@ -142,18 +142,18 @@ This will process the STEP files in the specified input folder, generate metadat
 
 ### Main Workflow
 
-• main.py reads command-line (CLI) arguments (e.g., --assembly, --hierarchical) and prepares logging if enabled.
-• The script gathers all STEP files from your input folder, creating a list of tasks (one per file).
-• A ProcessPoolExecutor dispatches these tasks to available worker processes in parallel, ensuring efficient use of CPU resources.
-• Each worker executes process_single_file() to parse the STEP file, build assembly or hierarchical graphs, optionally generate images, and produce metadata.
-• Once complete, results (e.g., GraphML files, PDFs, images) are saved to the designated output folder.
+* main.py reads command-line (CLI) arguments (e.g., --assembly, --hierarchical) and prepares logging if enabled.
+* The script gathers all STEP files from your input folder, creating a list of tasks (one per file).
+* A ProcessPoolExecutor dispatches these tasks to available worker processes in parallel, ensuring efficient use of CPU resources.
+* Each worker executes process_single_file() to parse the STEP file, build assembly or hierarchical graphs, optionally generate images, and produce metadata.
+* Once complete, results (e.g., GraphML files, PDFs, images) are saved to the designated output folder.
 
 ### Parallel Processing
 
-• This project leverages Python’s ProcessPoolExecutor to perform parallel processing, distributing STEP-file workloads across multiple CPU cores. Parallel processing allows you to handle multiple data streams concurrently, reducing the overall runtime.
-• At startup, worker_init() configures logging and (if requested) initializes a lightweight open Open Cascade display context for generating part images.
-• Each process independently loads the STEP file, creates graphs or metadata, and writes results back to disk. This concurrent step-by-step workflow helps ensure that long-running operations like geometry checks or GPT API calls do not block the entire pipeline.
-• By default, half the available CPU cores are used, though you can specify --max-performance to harness all cores when needed. This setup aligns with best practices for maximizing throughput on CPU-intensive tasks if system responsiveness is not a priority.
+* This project leverages Python’s ProcessPoolExecutor to perform parallel processing, distributing STEP-file workloads across multiple CPU cores. Parallel processing allows you to handle multiple data streams concurrently, reducing the overall runtime.
+* At startup, worker_init() configures logging and (if requested) initializes a lightweight open Open Cascade display context for generating part images.
+* Each process independently loads the STEP file, creates graphs or metadata, and writes results back to disk. This concurrent step-by-step workflow helps ensure that long-running operations like geometry checks or GPT API calls do not block the entire pipeline.
+* By default, half the available CPU cores are used, though you can specify --max-performance to harness all cores when needed. This setup aligns with best practices for maximizing throughput on CPU-intensive tasks if system responsiveness is not a priority.
 
 ### Reading STEP Files
 
@@ -259,27 +259,28 @@ This project can optionally generate visual snapshots (PNG) of both individual p
 
 A special class, DisplayManager, ensures only one display context is initialized per worker process:
 
-• When the worker process starts, worker_init() calls DisplayManager.initialize() if the user requested images.
-• DisplayManager uses init_display() internally to set up a small 320×240 window for rendering and snapshots.
-• Subsequent calls to DisplayManager.get_display() in that process return the same shared display context rather than creating multiple windows.
+* When the worker process starts, worker_init() calls DisplayManager.initialize() if the user requested images.
+* DisplayManager uses init_display() internally to set up a small 320×240 window for rendering and snapshots.
+* Subsequent calls to DisplayManager.get_display() in that process return the same shared display context rather than creating multiple windows.
 
 #### 2. Single-Process Rendering Flow
 
 Inside each process:
 
-• The code obtains the display context from DisplayManager.get_display().
-• Before rendering each shape, any previously rendered objects are cleared.
-• The shape is added to the display context as an AIS_Shape, the view is fitted to show the entire geometry, and then the view is “dumped” to a PNG file.
-• Once the snapshot is saved, the AIS_Shape is removed from the display context to free resources.
+* The code obtains the display context from DisplayManager.get_display().
+* Before rendering each shape, any previously rendered objects are cleared.
+* The shape is added to the display context as an AIS_Shape, the view is fitted to show the entire geometry, and then the view is “dumped” to a PNG file.
+* Once the snapshot is saved, the AIS_Shape is removed from the display context to free resources.
 
 #### 3. Extracting Part Images vs. Full Assembly
 
 In extract_images(), each part shape is rendered individually (unless --only-full-assembly was specified). If a shape is valid, the display pipeline is:
-• Remove any previously displayed geometry with RemoveAll().
-• Display the current part as an AIS_Shape.
-• FitAll() to center it on the screen.
-• Dump() the result to a PNG file.
-• Check for completion (i.e., that the PNG file actually exists and is non-empty).
+
+* Remove any previously displayed geometry with RemoveAll()
+* Display the current part as an AIS_Shape.
+* FitAll() to center it on the screen.
+* Dump() the result to a PNG file.
+* Check for completion (i.e., that the PNG file actually exists and is non-empty).
 
 After all parts are processed, one final “full assembly” snapshot is rendered using the combined shape. This image is saved under the name `<filename>`_full_assembly.png.
 
@@ -287,16 +288,16 @@ After all parts are processed, one final “full assembly” snapshot is rendere
 
 Because each worker process may render multiple files:
 
-• The memory usage is monitored and logged after each file is processed.
-• DisplayManager.clear_display() is called at the end of each processed file, removing all shapes from the display context.
-• This helps keep resource usage in check, particularly when handling large batches of STEP files or high-volume parallel processing.
+* The memory usage is monitored and logged after each file is processed.
+* DisplayManager.clear_display() is called at the end of each processed file, removing all shapes from the display context.
+* This helps keep resource usage in check, particularly when handling large batches of STEP files or high-volume parallel processing.
 
 In practice, this approach allows multiple processes to generate snapshots simultaneously without conflicting over a single shared display resource. Each process has its own display context, ensuring that concurrency issues (like locked GUIs or race conditions in rendering) are minimized.
 
 When run with the --images flag:
 
-• The code automatically includes image extraction in the pipeline, generating part-level and assembly-level PNGs in the specified output folder.
-• If --only-full-assembly is specified, only the final assembly snapshot is created.
+* The code automatically includes image extraction in the pipeline, generating part-level and assembly-level PNGs in the specified output folder.
+* If --only-full-assembly is specified, only the final assembly snapshot is created.
 
 As a result, you gain a quick visual reference for each part and the overall assembly, which can be especially useful for manual inspection or automated QA checks.
 
