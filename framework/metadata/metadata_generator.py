@@ -70,13 +70,9 @@ class MetadataGenerator:
             for image_file in image_files:
                 image_path = os.path.join(images_folder, image_file)
                 with Image.open(image_path) as img:
-                    # Convert to grayscale
                     img = img.convert('L')
-                    # Compress image
                     buffer = io.BytesIO()
                     img.save(buffer, format="JPEG", optimize=True, quality=75)
-                    #also save to local
-                    #img.save(os.path.join(images_folder, image_file), format="JPEG", optimize=True, quality=75)
                     compressed_image = buffer.getvalue()
                     encoded_string = base64.b64encode(compressed_image).decode('utf-8')
                     encoded_images.append(encoded_string)
