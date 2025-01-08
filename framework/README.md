@@ -346,12 +346,12 @@ While the metadata generation process is powerful, it has some limitations:
 
 ## Logging and Debugging
 
-• If --log is specified, logs are written to “processing_log.txt” in the output folder.
-• logging_utils.py provides setup_logging() and log_process_memory() to monitor total memory usage across the main and worker processes.
-• For debugging concurrency issues, examine the logs for any exceptions reported during worker tasks.
+* If --log is specified, logs are written to “processing_log.txt” in the output folder.
+* logging_utils.py provides setup_logging() and log_process_memory() to monitor total memory usage across the main and worker processes.
+* For debugging concurrency issues, examine the logs for any exceptions reported during worker tasks.
 
 ## Performance Considerations
 
-• By default, the project uses half of the CPU cores. Use --max-performance if you need maximum speed and can tolerate heavy CPU usage.
-• The script tries to batch files based on available memory (in process_step_files_optimized). Large files or complicated geometry may require limiting the number of parallel processes.
-• Storing images can be memory-intensive. Use --only-full-assembly if you don't need images of all the parts.
+* By default, the project uses half of the CPU cores. Use --max-performance if you need maximum speed and can tolerate heavy CPU usage.
+* The script tries to batch files based on available memory (in process_step_files_optimized). Large files or complicated geometry may require limiting the number of parallel processes.
+* Storing images can be memory-intensive. Use --only-full-assembly if you don't need images of all the parts.
