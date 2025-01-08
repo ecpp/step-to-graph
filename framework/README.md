@@ -1,6 +1,6 @@
 # Project Overview
 
-This project streamlines the extraction and analysis of 3D data from STEP (.step or .stp) CAD files for a range of applications, including machine learning, data analytics, and industrial research. It automatically constructs various graph representations (e.g., assembly graphs and hierarchical graphs) showing part connectivity and topological relationships, generates metadata using OpenAI’s GPT-based services, and extracts part images for visualization.
+This project streamlines the extraction and analysis of 3D data from STEP (.step or .stp) files for a range of applications, including machine learning, data analytics, and industrial research. It automatically constructs various graph representations (e.g., assembly graphs and hierarchical graphs) showing part connectivity and topological relationships, generates metadata using OpenAI’s GPT-based services, and extracts part images for visualization.
 
 By leveraging multi-core processing, this tool can efficiently handle large collections of STEP files in parallel. The integrated GPT-based metadata feature is especially helpful for those aiming to annotate or categorize 3D datasets. In addition, optional part- and assembly-level images can be generated to further enrich downstream workflows (e.g., visual verification or training image-based ML models), a capability that follows broader trends in combining image data and GPT models for structured information retrieval.
 
@@ -13,10 +13,9 @@ In essence, this pipeline consolidates geometry parsing, graph creation, image e
 - [Installation](#installation)
 - [Usage](#usage)
 - [How It Works](#how-it-works)
+- [Differences Between Graph Types](#differences-between-graph-types)
 - [Logging and Debugging](#logging-and-debugging)
 - [Performance Considerations](#performance-considerations)
-- [Possible Extensions](#possible-extensions)
-- [Differences Between Graph Types](#differences-between-graph-types)
 
 ---
 
@@ -61,18 +60,23 @@ Follow these steps to set up the environment
 
 ### 1. Clone the Repository
 
-    `git clone https://github.com/yourusername/step2graph.git`
-    `cd step2graph`
+```
+git clone https://github.com/micss-lab/STEPWorks.git
+```
+
+```
+cd STEPWorks
+```
 
 ### 2. Create a Conda Environment
 
 Create a new Conda environment named `step2graph` (or any name of your choice):
 
-`conda create -n step2graph python=3.12 -y`
+`conda create -n stepworks python=3.12 -y`
 
 Activate the environment:
 
-`conda activate step2graph`
+`conda activate stepworks`
 
 ### 3. Install Python OCC
 
@@ -82,7 +86,9 @@ Install `pythonocc-core` to manage Jupyter notebooks:
 
 ### 4. Install Python Dependencies
 
-    `pip install -r requirements.txt`
+```
+pip install -r requirements.txt
+```
 
 ### 5. Set Your OpenAI API Key (OPTIONAL)
 
@@ -134,7 +140,9 @@ The program is run via the command line using main.py. Below are the main argume
 
 #### Example:
 
-`python main.py --input /path/to/step/files --output /path/to/output --generate-metadata --assembly --save-pdf --processes 4 `
+```
+python main.py --input /path/to/step/files --output /path/to/output --generate-metadata --assembly --save-pdf --processes 4
+```
 
 This will process the STEP files in the specified input folder, generate metadata, create an assembly graph, and save the graph as a PDF using 4 cores of the CPU.
 
@@ -173,12 +181,12 @@ In this framework, the **assembly graph** captures the part-to-part connectivity
 2. **R-tree Index Construction**
    All part bounding boxes are inserted into an R-tree for spatial indexing. An R-tree is a height-balanced data structure optimized for spatial queries, such as overlap or nearest-neighbor searches.
    * **Why R-trees?**
-     * **Performance** : Instead of comparing every bounding box against every other (which is O(N2)O(N^2)**O**(**N**2**)**), an R-tree typically offers near-logarithmic search for overlap queries (O(Nlog⁡N)O(N \log N)**O**(**N**log**N**) under average conditions). This dramatically speeds up the process of finding candidates for geometric contact.
+     * **Performance** : Instead of comparing every bounding box against every other (which is $O(N^2)$)**,** an R-tree typically offers near-logarithmic search for overlap queries ($O(N logN)$ under average conditions). This dramatically speeds up the process of finding candidates for geometric contact.
      * **Spatial Organization** : R-trees group bounding boxes hierarchically, which is well-suited for large assemblies with many parts.
    * **Downsides** :
-   * **Tree Construction Overhead** : Building and maintaining the R-tree has an upfront cost, which may be non-trivial if the parts are few or the distribution is highly skewed.
-   * **Worst-case Degradation** : If many bounding boxes are large or heavily overlapping, query performance can degrade and approach naive O(N2)O(N^2)**O**(**N**2**)** checks.
-   * **Extra Complexity** : Implementing and tuning R-tree parameters introduces complexity compared to a straightforward pairwise bounding-box check.
+     * **Tree Construction Overhead** : Building and maintaining the R-tree has an upfront cost, which may be non-trivial if the parts are few or the distribution is highly skewed.
+     * **Worst-case Degradation** : If many bounding boxes are large or heavily overlapping, query performance can degrade and approach naive $O(N^2)$ checks.
+     * **Extra Complexity** : Implementing and tuning R-tree parameters introduces complexity compared to a straightforward pairwise bounding-box check.
 3. **Initial Overlap Detection**
    Once the R-tree is built, each part queries the structure with an *expanded* bounding box (enlarged by a tolerance factor, often derived from the bounding box diagonal). This step quickly identifies other parts that might overlap within that tolerance. By doing so, the framework narrows down the pool of potential colliding parts from the entire set to a much smaller subset.
 4. **Precise Geometric Checks**
