@@ -4,9 +4,11 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y libgl1 xvfb
 
-COPY . /app
-COPY ../requirements.txt /app
-COPY ../framework /app/framework
+ENV PYTHONOCC_OFFSCREEN_RENDERER=1
+
+COPY run.sh /app
+COPY requirements.txt /app
+COPY . /app/framework
 
 RUN conda create -n myenv python=3.10 -y
 SHELL ["conda", "run", "-n", "myenv", "/bin/bash", "-c"]
