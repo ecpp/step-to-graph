@@ -39,6 +39,9 @@ if __name__ == "__main__":
                         help="Save images of parts in the assembly graph")
     parser.add_argument("--only-full-assembly", action="store_true",
                         help="Only save full assembly image")
+    parser.add_argument("--offscreen", action="store_true",
+                        help="Use offscreen renderer for image generation")
+
 
     args = parser.parse_args()
 
@@ -53,10 +56,10 @@ if __name__ == "__main__":
         num_processes = int(args.processes)
 
     if args.generate_metadata:
-        api_key = os.getenv("OPENAI_API_KEY")
+        api_key = os.getenv("GENAI_API_KEY")
         if not api_key:
             raise ValueError(
-                "OpenAI API key not found in environment variables")
+                "GenAI API key not found in environment variables")
 
     if args.log:
         setup_logging(output_folder)
@@ -87,11 +90,12 @@ if __name__ == "__main__":
             args.assembly,
             args.hierarchical,
             args.save_pdf,
-            args.save_html,  # Pass the new argument
+            args.save_html,
             no_self_connections=args.no_self_connections,
             generate_stats=args.stats,
             images=args.images,
-            only_full_assembly=args.only_full_assembly
+            only_full_assembly=args.only_full_assembly,
+            offscreen=args.offscreen
         )
     except KeyboardInterrupt:
         logging.info("Process interrupted by user. Exiting gracefully...")

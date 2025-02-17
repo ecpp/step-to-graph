@@ -38,17 +38,20 @@ class DisplayManager:
     @classmethod
     def clear_display(cls):
         if cls._display:
+            cls._display.EraseAll()
             cls._display.Context.RemoveAll(True)
             cls._display.Repaint()
             cls._display.ResetView()
 
 
-def worker_init(output_folder, images):
+def worker_init(output_folder, images, offscreen=False):
     """
     Initialize the worker process by setting up logging and display.
     """
     setup_logging(output_folder)
     if images:
+        if offscreen:
+            os.environ["PYTHONOCC_OFFSCREEN_RENDERER"] = "1"
         DisplayManager.initialize(output_folder)
 
 def process_single_file(args):
@@ -181,7 +184,7 @@ def process_step_files_optimized(folder_path, output_folder, **kwargs):
             except Exception as e:
                 logging.error(f"Batch processing failed: {e}")
 
-def process_step_files(folder_path, output_folder, skip_existing, num_processes, generate_metadata_flag, generate_assembly, generate_hierarchical, save_pdf, save_html, no_self_connections, generate_stats, images, only_full_assembly):
+def process_step_files(folder_path, output_folder, skip_existing, num_processes, generate_metadata_flag, generate_assembly, generate_hierarchical, save_pdf, save_html, no_self_connections, generate_stats, images, only_full_assembly, offscreen):
     """
     Process all STEP files in the specified folder using concurrent futures.
     """
@@ -236,7 +239,7 @@ def process_step_files(folder_path, output_folder, skip_existing, num_processes,
         ]
 
         results = []
-        executor = ProcessPoolExecutor(max_workers=num_processes, initializer=worker_init, initargs=(output_folder, images))
+        executor = ProcessPoolExecutor(max_workers=num_processes, initializer=worker_init, initargs=(output_folder, images, offscreen))
         # Submit all tasks to the executor
         future_to_file = {executor.submit(process_single_file, args): args[0] for args in args_list}
         

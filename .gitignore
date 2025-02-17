@@ -1,3 +1,8 @@
+*.png
+*.graphml
+*.pdf
+*.html
+*.txt
 demostep/
 input/
 input2/

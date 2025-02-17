@@ -1,24 +1,25 @@
 import os
 import re
 import json
-import openai
 import logging
 from typing import List, Optional
 import base64
 from PIL import Image
 import io
+from google import genai
 
 class MetadataGenerator:
     def __init__(self, api_key=None):
         if api_key is None:
-            api_key = os.getenv('OPENAI_API_KEY')
+            api_key = os.getenv('GENAI_API_KEY')
         if not api_key:
-            raise ValueError("OpenAI API key not found in environment variables")
-        self.client = openai.OpenAI(api_key=api_key)
+            raise ValueError("GenAI API key not found in environment variables")
+        self.client = genai.Client(api_key=api_key)
 
     def generate(self, product_names: List[str], filename: str, images_folder: Optional[str] = None):
         if product_names:
             prompt = (
+                "You are a helpful assistant that generates metadata for CAD assemblies.\n\n"
                 f"Based on the following list of product names from a STEP file named '{filename}', generate a JSON metadata that includes:\n"
                 "If none of the component names make sense, or too generic, ignore everything and return an empty JSON object.\n"
                 "For potential categories consider at most 2 categories that are most likely.\n"
@@ -32,15 +33,13 @@ class MetadataGenerator:
             )
 
             try:
-                response = self.client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[
-                        {"role": "system", "content": "You are a helpful assistant that generates metadata for CAD assemblies."},
-                        {"role": "user", "content": prompt}
-                    ]
+                
+                response = self.client.models.generate_content(
+                    model="gemini-2.0-flash",
+                    contents=prompt
                 )
 
-                content = response.choices[0].message.content.strip()
+                content = response.text
                 content = re.sub(r'^```json\n|\n```$', '', content, flags=re.MULTILINE)
 
                 metadata = json.loads(content)
@@ -78,6 +77,7 @@ class MetadataGenerator:
                     encoded_images.append(encoded_string)
 
             prompt = (
+                "You are a helpful assistant that generates metadata for CAD assemblies.\n\n"
                 f"Based on the following assembly image of a STEP file, generate a JSON metadata that includes:\n"
                 "For potential categories consider at most 2 categories that are most likely.\n"
                 "1. A very brief description (but not too generic) of what this assembly might be (json key description)\n"
@@ -88,20 +88,12 @@ class MetadataGenerator:
                 "Provide the response as a JSON object."
             )
 
-            messages = [
-                {"role": "system", "content": "You are a helpful assistant that generates metadata for CAD assemblies based on images."},
-                {"role": "user", "content": prompt}
-            ]
-
-            for img in encoded_images:
-                messages.append({"role": "user", "content": f"![image](data:image/png;base64,{img})"})
-
-            response = self.client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=messages
+            response = self.client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=[prompt] + [f"![image](data:image/png;base64,{img})" for img in encoded_images]
             )
 
-            content = response.choices[0].message.content.strip()
+            content = response.text
             content = re.sub(r'^```json\n|\n```$', '', content, flags=re.MULTILINE)
 
             metadata = json.loads(content)
